@@ -1,0 +1,10 @@
+{
+  "name": "TaskFlow",
+  "short_name": "TaskFlow",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#ffffff",
+  "description": "Minimal ToDo Web App",
+  "icons": []
+}

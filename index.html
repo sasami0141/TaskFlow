@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="ja">
+<!-- Created at: 2026-11-06_22-01-00 -->
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>TaskFlow</title>
+    <link rel="stylesheet" href="css/style.css">
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#ffffff">
+</head>
+<body>
+    <header>
+        <h1>TaskFlow</h1>
+        <button id="theme-toggle">🌓</button>
+    </header>
+
+    <nav class="tabs">
+        <button class="tab-btn active" data-target="view-tasks">タスク</button>
+        <button class="tab-btn" data-target="view-calendar">カレンダー</button>
+        <button class="tab-btn" data-target="view-stats">統計</button>
+        <button class="tab-btn" data-target="view-settings">設定</button>
+    </nav>
+
+    <main>
+        <!-- Tasks View -->
+        <section id="view-tasks" class="view active">
+            <div class="controls">
+                <input type="text" id="search-input" placeholder="検索...">
+                <select id="filter-status">
+                    <option value="all">すべて</option>
+                    <option value="active">未完了</option>
+                    <option value="completed">完了</option>
+                </select>
+                <select id="sort-select">
+                    <option value="deadline">期限順</option>
+                    <option value="priority">優先度順</option>
+                    <option value="created">作成順</option>
+                </select>
+            </div>
+            <ul id="task-list"></ul>
+            <button id="fab-add" class="fab">+</button>
+        </section>
+
+        <!-- Calendar View -->
+        <section id="view-calendar" class="view">
+            <div class="calendar-header">
+                <button id="cal-prev">◀</button>
+                <h2 id="cal-month">2026年 11月</h2>
+                <button id="cal-next">▶</button>
+            </div>
+            <div id="calendar-grid"></div>
+            <div id="calendar-tasks"></div>
+        </section>
+
+        <!-- Stats View -->
+        <section id="view-stats" class="view">
+            <h2>統計情報</h2>
+            <div class="stat-card">
+                <h3>タスク進捗</h3>
+                <p>完了: <span id="stat-completed">0</span></p>
+                <p>未完了: <span id="stat-active">0</span></p>
+                <p>完了率: <span id="stat-rate">0</span>%</p>
+            </div>
+        </section>
+
+        <!-- Settings View -->
+        <section id="view-settings" class="view">
+            <h2>データ管理</h2>
+            <p>※データは端末内にのみ保存されます。</p>
+            <button id="btn-backup">バックアップ作成 (JSON)</button>
+            <br><br>
+            <label for="input-restore" class="file-label">復元 (JSONを選択)</label>
+            <input type="file" id="input-restore" accept=".json" style="display:none;">
+        </section>
+    </main>
+
+    <!-- Task Modal -->
+    <div id="task-modal" class="modal hidden">
+        <div class="modal-content">
+            <h2 id="modal-title">タスク追加</h2>
+            <input type="hidden" id="task-id">
+            
+            <label>タスク名</label>
+            <input type="text" id="task-title" required>
+            
+            <label>期限</label>
+            <div class="deadline-controls">
+                <input type="date" id="task-deadline">
+                <div class="quick-dates">
+                    <button type="button" class="btn-quick" data-days="1">+1日</button>
+                    <button type="button" class="btn-quick" data-days="3">+3日</button>
+                    <button type="button" class="btn-quick" data-days="7">+7日</button>
+                    <button type="button" class="btn-quick" data-days="14">+14日</button>
+                    <button type="button" class="btn-quick" data-months="1">+1月</button>
+                    <button type="button" class="btn-quick" data-months="3">+3月</button>
+                    <button type="button" class="btn-quick" data-months="6">+6月</button>
+                </div>
+            </div>
+
+            <label>優先度</label>
+            <select id="task-priority">
+                <option value="3">高</option>
+                <option value="2">中</option>
+                <option value="1">低</option>
+            </select>
+
+            <label>カテゴリー</label>
+            <input type="text" id="task-category" placeholder="例: 仕事, 個人">
+
+            <label>繰り返し</label>
+            <select id="task-recurring">
+                <option value="none">なし</option>
+                <option value="daily">毎日</option>
+                <option value="weekly">毎週</option>
+                <option value="monthly">毎月</option>
+            </select>
+
+            <label>メモ</label>
+            <textarea id="task-memo" rows="3"></textarea>
+
+            <label>サブタスク</label>
+            <div id="subtasks-container"></div>
+            <button type="button" id="btn-add-subtask">+ サブタスク追加</button>
+
+            <div class="modal-actions">
+                <button type="button" id="btn-cancel">キャンセル</button>
+                <button type="button" id="btn-save" class="primary">保存</button>
+            </div>
+        </div>
+    </div>
+
+    <script type="module" src="js/app.js"></script>
+</body>
+</html>
