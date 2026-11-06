@@ -6,5 +6,16 @@
   "background_color": "#f2f2f7",
   "theme_color": "#f2f2f7",
   "description": "モダンで美しいToDo Webアプリ",
-  "icons": []
+  "icons": [
+    {
+      "src": "taskflow_icon.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "taskflow_icon.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
 }
