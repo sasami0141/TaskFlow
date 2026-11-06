@@ -1,4 +1,4 @@
-/* TaskFlow iOS Style CSS */
+/* TaskFlow iOS Style CSS - v5 */
 :root {
   --bg-color: #f2f2f7;
   --card-bg: #ffffff;
@@ -132,6 +132,7 @@ body {
   display: flex;
   align-items: center;
   justify-content: center;
+  z-index: 10;
 }
 
 .modal {
@@ -145,10 +146,12 @@ body {
   align-items: center;
   justify-content: center;
   padding: 16px;
+  z-index: 100;
 }
 
 .modal.hidden {
-  display: none;
+  display: none !important;
+  pointer-events: none !important;
 }
 
 .modal-content {

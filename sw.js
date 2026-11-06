@@ -1,11 +1,11 @@
-const CACHE_NAME = 'taskflow-v1';
+const CACHE_NAME = 'taskflow-v5';
 const ASSETS_TO_CACHE = [
   './',
   './index.html',
   './css/style.css',
   './js/app.js',
-  './manifest.json',
-  './icon.png'
+  './manifest.json'
+  // './icon.png' (Upload icon.png to root directory on GitHub to enable icon caching)
 ];
 
 self.addEventListener('install', (event) => {
