@@ -197,11 +197,9 @@ function setupServiceWorker() {
         navigator.serviceWorker.register('./sw.js').then(reg => {
             console.log('SW Registered');
             
-            // Listen for new service worker installation (an update is available)
             reg.addEventListener('updatefound', () => {
                 newWorker = reg.installing;
                 newWorker.addEventListener('statechange', () => {
-                    // Has network content changed?
                     if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
                         showUpdateBanner();
                     }
@@ -209,7 +207,6 @@ function setupServiceWorker() {
             });
         }).catch(e => console.log('SW Registration error', e));
 
-        // Listen for the controlling service worker changing (update applied)
         let refreshing = false;
         navigator.serviceWorker.addEventListener('controllerchange', () => {
             if (!refreshing) {
@@ -222,13 +219,33 @@ function setupServiceWorker() {
 
 function showUpdateBanner() {
     const banner = document.getElementById('update-banner');
-    if (banner) banner.classList.remove('hidden');
+    if (banner) {
+        banner.classList.remove('hidden');
+        // Reset button state just in case
+        const btn = document.getElementById('btn-update');
+        if (btn) btn.disabled = false;
+    }
 }
 
 function applyUpdate() {
+    // 1. すぐにバナーを隠してボタンを無効化（連打防止とUIのスタック解消）
+    const banner = document.getElementById('update-banner');
+    if (banner) banner.classList.add('hidden');
+    
+    const btn = document.getElementById('btn-update');
+    if (btn) btn.disabled = true;
+
+    // 2. Service Workerに更新を指示
     if (newWorker) {
-        // Send message to SW to skip waiting and activate immediately
         newWorker.postMessage({ action: 'skipWaiting' });
+        
+        // iOS Safariなどでcontrollerchangeが発火しない場合のフェイルセーフ
+        setTimeout(() => {
+            window.location.reload();
+        }, 1000);
+    } else {
+        // newWorkerが取得できていない場合の保険
+        window.location.reload();
     }
 }
 
@@ -256,7 +273,6 @@ document.addEventListener('DOMContentLoaded', async () => {
 });
 
 function setupUI() {
-    // Update Banner Events
     const btnUpdate = document.getElementById('btn-update');
     const btnDismiss = document.getElementById('btn-update-dismiss');
     const banner = document.getElementById('update-banner');
