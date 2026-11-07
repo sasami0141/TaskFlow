@@ -161,20 +161,9 @@ function requestNotificationPermissionDirectly() {
 
 async function checkAndSendTaskNotification(task) {
     if (Notification.permission !== 'granted') return;
-    if (!task.deadline || task.completed || !task.reminder || task.reminder === 'none' || task.notified) return;
+    if (!task.deadline || task.completed || !task.reminder || task.notified) return;
 
-    let reminderTime;
-    if (!task.reminder.includes('T')) {
-        const days = parseInt(task.reminder, 10);
-        if (!isNaN(days) && task.deadline) {
-            const d = new Date(task.deadline);
-            d.setDate(d.getDate() - days);
-            reminderTime = d.getTime();
-        } else return;
-    } else {
-        reminderTime = new Date(task.reminder).getTime();
-    }
-
+    const reminderTime = new Date(task.reminder).getTime();
     const now = new Date().getTime();
     
     if (now >= reminderTime) {
@@ -197,10 +186,53 @@ async function checkAndSendTaskNotification(task) {
         
         task.notified = true;
         await saveTask(task);
-        loadTasks(); // Update UI
+        loadTasks();
     }
 }
 
+// --- PWA Update Module ---
+let newWorker;
+function setupServiceWorker() {
+    if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.register('./sw.js').then(reg => {
+            console.log('SW Registered');
+            
+            // Listen for new service worker installation (an update is available)
+            reg.addEventListener('updatefound', () => {
+                newWorker = reg.installing;
+                newWorker.addEventListener('statechange', () => {
+                    // Has network content changed?
+                    if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+                        showUpdateBanner();
+                    }
+                });
+            });
+        }).catch(e => console.log('SW Registration error', e));
+
+        // Listen for the controlling service worker changing (update applied)
+        let refreshing = false;
+        navigator.serviceWorker.addEventListener('controllerchange', () => {
+            if (!refreshing) {
+                refreshing = true;
+                window.location.reload();
+            }
+        });
+    }
+}
+
+function showUpdateBanner() {
+    const banner = document.getElementById('update-banner');
+    if (banner) banner.classList.remove('hidden');
+}
+
+function applyUpdate() {
+    if (newWorker) {
+        // Send message to SW to skip waiting and activate immediately
+        newWorker.postMessage({ action: 'skipWaiting' });
+    }
+}
+
+// --- Application Logic ---
 let currentTasks = [];
 let calDate = new Date();
 
@@ -209,7 +241,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         await initDB();
         setupUI();
         await loadTasks();
-        if ('serviceWorker' in navigator) navigator.serviceWorker.register('./sw.js').catch(e => console.log('SW Registration error', e));
+        setupServiceWorker();
         
         updateNotificationButtonUI();
 
@@ -224,19 +256,12 @@ document.addEventListener('DOMContentLoaded', async () => {
 });
 
 function setupUI() {
-    const deadlineInput = document.getElementById('task-deadline');
-    if (deadlineInput) deadlineInput.type = 'datetime-local';
-    
-    const reminderInput = document.getElementById('task-reminder');
-    if (reminderInput && reminderInput.tagName.toLowerCase() === 'select') {
-        const newReminder = document.createElement('input');
-        newReminder.type = 'datetime-local';
-        newReminder.id = 'task-reminder';
-        newReminder.className = reminderInput.className;
-        reminderInput.parentNode.replaceChild(newReminder, reminderInput);
-    } else if (reminderInput) {
-        reminderInput.type = 'datetime-local';
-    }
+    // Update Banner Events
+    const btnUpdate = document.getElementById('btn-update');
+    const btnDismiss = document.getElementById('btn-update-dismiss');
+    const banner = document.getElementById('update-banner');
+    if(btnUpdate) btnUpdate.addEventListener('click', applyUpdate);
+    if(btnDismiss) btnDismiss.addEventListener('click', () => banner.classList.add('hidden'));
 
     document.getElementById('theme-toggle').addEventListener('click', () => {
         const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
@@ -364,7 +389,7 @@ function openModal(task = null) {
     document.getElementById('task-recurring').value = task ? task.recurring : 'none';
     
     let defaultReminder = task ? (task.reminder || '') : '';
-    if (defaultReminder && !defaultReminder.includes('T') && defaultReminder !== 'none') defaultReminder = ''; 
+    if (defaultReminder && !defaultReminder.includes('T')) defaultReminder = ''; 
     document.getElementById('task-reminder').value = defaultReminder;
     
     document.getElementById('task-memo').value = task ? task.memo : '';
@@ -432,12 +457,8 @@ function renderTasks() {
             ` : '';
             
             let reminderDisplay = '';
-            if (task.reminder && task.reminder !== 'none') {
-                if (task.reminder.includes('T')) {
-                    reminderDisplay = `<span>🔔 ${task.reminder.replace('T', ' ')}</span>`;
-                } else {
-                    reminderDisplay = `<span>🔔 ${task.reminder === '0' ? '当日' : task.reminder + '日前'}</span>`;
-                }
+            if (task.reminder && !task.notified) {
+                reminderDisplay = `<span>🔔 ${task.reminder.replace('T', ' ')}</span>`;
             }
 
             li.innerHTML = `

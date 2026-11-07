@@ -10,6 +10,13 @@
     <link rel="apple-touch-icon" href="taskflow_icon.png">
 </head>
 <body>
+    <!-- Update Notification Banner -->
+    <div id="update-banner" class="update-banner hidden">
+        <p>新しいバージョンが利用可能です！</p>
+        <button id="btn-update" class="btn-primary">更新して再読み込み</button>
+        <button id="btn-update-dismiss" class="btn-text" style="color: white; margin-left: 8px;">後で</button>
+    </div>
+
     <header class="app-header">
         <h1>TaskFlow</h1>
         <button id="theme-toggle" class="icon-btn">🌓</button>
@@ -142,8 +149,8 @@
                 </div>
                 
                 <div class="form-group">
-                    <label>期限</label>
-                    <input type="date" id="task-deadline">
+                    <label>期限 (日付・時間)</label>
+                    <input type="datetime-local" id="task-deadline">
                     
                     <div style="margin-top: 12px; background: var(--bg-color); padding: 12px; border-radius: var(--border-radius-md);">
                         <label style="font-size: 12px;">相対日数で指定</label>
@@ -194,17 +201,14 @@
                         </select>
                     </div>
                 </div>
-                
+
                 <div class="form-group">
                     <label>リマインダー通知</label>
-                    <select id="task-reminder">
-                        <option value="none">通知なし</option>
-                        <option value="0">当日の朝</option>
-                        <option value="1">1日前</option>
-                        <option value="2" selected>2日前</option>
-                        <option value="3">3日前</option>
-                        <option value="7">1週間前</option>
-                    </select>
+                    <div class="form-row" style="margin-top: 4px;">
+                        <input type="datetime-local" id="task-reminder" style="flex: 1;">
+                        <button type="button" class="btn-secondary" onclick="document.getElementById('task-reminder').value=''" style="padding: 14px 16px;">クリア</button>
+                    </div>
+                    <p style="font-size: 11px; color: var(--text-secondary); margin-top: 4px;">※未設定（空欄）の場合は通知されません。</p>
                 </div>
 
                 <div class="form-group">
