@@ -82,12 +82,20 @@ async function toggleTaskStatus(task) {
     task.completed = !task.completed;
     if(task.completed && task.recurring !== 'none') {
         let newDateStr;
+        let newStartStr = null;
+        
         const weekdayMap = { 'sun':0, 'mon':1, 'tue':2, 'wed':3, 'thu':4, 'fri':5, 'sat':6 };
         
-        if(task.recurring === 'daily') newDateStr = calculateDate(task.deadline, 'days', 1);
-        else if(task.recurring === 'weekly') newDateStr = calculateDate(task.deadline, 'days', 7);
-        else if(task.recurring === 'monthly') newDateStr = calculateDate(task.deadline, 'months', 1);
-        else if(task.recurring in weekdayMap) {
+        if(task.recurring === 'daily') {
+            newDateStr = calculateDate(task.deadline, 'days', 1);
+            if(task.startDate) newStartStr = calculateDate(task.startDate, 'days', 1);
+        } else if(task.recurring === 'weekly') {
+            newDateStr = calculateDate(task.deadline, 'days', 7);
+            if(task.startDate) newStartStr = calculateDate(task.startDate, 'days', 7);
+        } else if(task.recurring === 'monthly') {
+            newDateStr = calculateDate(task.deadline, 'months', 1);
+            if(task.startDate) newStartStr = calculateDate(task.startDate, 'months', 1);
+        } else if(task.recurring in weekdayMap) {
             let d = task.deadline ? new Date(task.deadline) : new Date();
             d.setDate(d.getDate() + 1); 
             while(d.getDay() !== weekdayMap[task.recurring]) {
@@ -95,6 +103,13 @@ async function toggleTaskStatus(task) {
             }
             const tzOffset = d.getTimezoneOffset() * 60000;
             newDateStr = (new Date(d - tzOffset)).toISOString().slice(0, 16);
+            
+            // startDateも同じ日数だけシフト
+            if(task.startDate && task.deadline) {
+                const diffTime = Math.abs(new Date(newDateStr) - new Date(task.deadline));
+                const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+                newStartStr = calculateDate(task.startDate, 'days', diffDays);
+            }
         }
         
         const nextTask = { 
@@ -102,6 +117,7 @@ async function toggleTaskStatus(task) {
             id: generateId(), 
             completed: false, 
             deadline: newDateStr, 
+            startDate: newStartStr,
             notified: false, 
             subtasks: task.subtasks.map(st => ({...st, completed: false})) 
         };
@@ -115,8 +131,6 @@ let newWorker;
 function setupServiceWorker() {
     if ('serviceWorker' in navigator) {
         navigator.serviceWorker.register('./sw.js').then(reg => {
-            console.log('SW Registered');
-            
             reg.addEventListener('updatefound', () => {
                 newWorker = reg.installing;
                 newWorker.addEventListener('statechange', () => {
@@ -182,7 +196,6 @@ async function checkForUpdateManual() {
             alert('この環境では更新機能を利用できません。');
         }
     } catch (e) {
-        console.error('Update check error', e);
         alert('更新の確認に失敗しました。ネットワーク状況を確認してください。');
     } finally {
         btn.innerText = originalText;
@@ -211,8 +224,8 @@ function fetchAppVersion() {
 let currentTasks = [];
 let calDate = new Date();
 let selectedDateStr = null;
-let currentExtraDates = []; // 追加日程を一時保持する配列
-let currentStatStatus = null; // 'active' or 'completed'
+let currentExtraDates = []; // 追加日程
+let currentStatStatus = null; 
 
 document.addEventListener('DOMContentLoaded', async () => {
     try {
@@ -257,7 +270,6 @@ function setupUI() {
         });
     });
 
-    // 統計タブのインタラクション
     document.getElementById('card-stat-active').addEventListener('click', () => toggleStatDetails('active'));
     document.getElementById('card-stat-completed').addEventListener('click', () => toggleStatDetails('completed'));
     document.getElementById('stat-group-by').addEventListener('change', () => {
@@ -288,7 +300,17 @@ function setupUI() {
         container.appendChild(div);
     });
 
-    // 追加日程の処理
+    // URL追加
+    document.getElementById('btn-add-url').addEventListener('click', () => {
+        addUrlField();
+    });
+
+    // 画像追加
+    document.getElementById('btn-add-image').addEventListener('click', () => {
+        addImageField();
+    });
+
+    // 追加日程
     document.getElementById('btn-add-extra-date').addEventListener('click', () => {
         const input = document.getElementById('extra-date-input');
         if (input.value && !currentExtraDates.includes(input.value)) {
@@ -296,30 +318,6 @@ function setupUI() {
             renderExtraDates();
             input.value = '';
         }
-    });
-
-    // 画像ファイルのプレビュー処理
-    document.getElementById('task-image').addEventListener('change', function(e) {
-        const file = e.target.files[0];
-        if (file) {
-            const reader = new FileReader();
-            reader.onload = function(e) {
-                const dataUrl = e.target.result;
-                document.getElementById('task-image-data').value = dataUrl;
-                document.getElementById('task-image-preview').src = dataUrl;
-                document.getElementById('task-image-preview').style.display = 'block';
-                document.getElementById('btn-clear-image').style.display = 'inline-block';
-            };
-            reader.readAsDataURL(file);
-        }
-    });
-
-    document.getElementById('btn-clear-image').addEventListener('click', () => {
-        document.getElementById('task-image').value = '';
-        document.getElementById('task-image-data').value = '';
-        document.getElementById('task-image-preview').src = '';
-        document.getElementById('task-image-preview').style.display = 'none';
-        document.getElementById('btn-clear-image').style.display = 'none';
     });
 
     document.getElementById('btn-save').addEventListener('click', async () => {
@@ -330,19 +328,41 @@ function setupUI() {
             id: input.dataset.id, title: input.value, completed: input.dataset.completed === 'true'
         })).filter(st => st.title.trim() !== '');
 
+        // URLs
+        const urls = Array.from(document.querySelectorAll('.url-input-item')).map(div => {
+            return {
+                name: div.querySelector('.url-name').value.trim() || 'リンク',
+                url: div.querySelector('.url-val').value.trim()
+            };
+        }).filter(u => u.url !== '');
+
+        // Images
+        const images = Array.from(document.querySelectorAll('.img-input-item')).map(div => {
+            return {
+                name: div.querySelector('.img-name').value.trim() || '画像',
+                data: div.querySelector('.img-data').value
+            };
+        }).filter(i => i.data !== '');
+
         const task = {
             id: document.getElementById('task-id').value || null,
             title,
+            startDate: document.getElementById('task-start').value,
             deadline: document.getElementById('task-deadline').value,
             extraDates: currentExtraDates,
             priority: document.getElementById('task-priority').value,
             recurring: document.getElementById('task-recurring').value,
-            url: document.getElementById('task-url').value,
-            image: document.getElementById('task-image-data').value,
+            urls: urls,
+            images: images,
             memo: document.getElementById('task-memo').value,
             completed: document.getElementById('task-id').dataset.completed === 'true',
             subtasks
         };
+        
+        // 後方互換性(単一プロパティのクリーニング)
+        task.url = '';
+        task.image = '';
+
         await saveTask(task);
         
         modal.classList.add('hidden');
@@ -357,6 +377,64 @@ function setupUI() {
     document.getElementById('filter-status').addEventListener('change', renderTasks);
     document.getElementById('sort-select').addEventListener('change', renderTasks);
     document.getElementById('btn-manual-update').addEventListener('click', checkForUpdateManual);
+}
+
+// URL追加UI
+function addUrlField(name = '', url = '') {
+    const container = document.getElementById('urls-container');
+    const div = document.createElement('div');
+    div.className = 'multi-item url-input-item';
+    div.innerHTML = `
+        <button type="button" class="btn-remove-item" title="削除">×</button>
+        <div class="multi-item-row">
+            <span style="font-size: 12px; width: 40px; color: var(--text-secondary);">名前</span>
+            <input type="text" class="url-name" placeholder="リンクの名前 (任意)" value="${name}">
+        </div>
+        <div class="multi-item-row">
+            <span style="font-size: 12px; width: 40px; color: var(--text-secondary);">URL</span>
+            <input type="url" class="url-val" placeholder="https://..." value="${url}">
+        </div>
+    `;
+    div.querySelector('.btn-remove-item').onclick = () => div.remove();
+    container.appendChild(div);
+}
+
+// 画像追加UI
+function addImageField(name = '', data = '') {
+    const container = document.getElementById('images-container');
+    const div = document.createElement('div');
+    div.className = 'multi-item img-input-item';
+    
+    div.innerHTML = `
+        <button type="button" class="btn-remove-item" title="削除">×</button>
+        <div class="multi-item-row">
+            <span style="font-size: 12px; width: 40px; color: var(--text-secondary);">名前</span>
+            <input type="text" class="img-name" placeholder="画像の名前 (任意)" value="${name}">
+        </div>
+        <div class="multi-item-row">
+            <input type="file" class="img-file" accept="image/*" style="font-size: 12px;">
+            <input type="hidden" class="img-data" value="${data}">
+        </div>
+        <img class="attachment-preview img-preview" style="display:${data ? 'block' : 'none'};" src="${data}">
+    `;
+    
+    div.querySelector('.btn-remove-item').onclick = () => div.remove();
+    
+    div.querySelector('.img-file').addEventListener('change', function(e) {
+        const file = e.target.files[0];
+        if (file) {
+            const reader = new FileReader();
+            reader.onload = function(evt) {
+                const dataUrl = evt.target.result;
+                div.querySelector('.img-data').value = dataUrl;
+                div.querySelector('.img-preview').src = dataUrl;
+                div.querySelector('.img-preview').style.display = 'block';
+            };
+            reader.readAsDataURL(file);
+        }
+    });
+
+    container.appendChild(div);
 }
 
 function renderExtraDates() {
@@ -381,6 +459,8 @@ function openModal(task = null, defaultDateStr = null) {
     document.getElementById('task-id').dataset.completed = task ? task.completed : 'false';
     document.getElementById('task-title').value = task ? task.title : '';
     
+    document.getElementById('task-start').value = task && task.startDate ? task.startDate : '';
+
     let defaultDeadline = task ? task.deadline : '';
     if (!defaultDeadline && defaultDateStr) {
         const now = new Date();
@@ -397,19 +477,22 @@ function openModal(task = null, defaultDateStr = null) {
     document.getElementById('task-priority').value = task ? task.priority : '2';
     document.getElementById('task-recurring').value = task ? task.recurring : 'none';
     
-    document.getElementById('task-url').value = task && task.url ? task.url : '';
-    
-    const imgData = task && task.image ? task.image : '';
-    document.getElementById('task-image-data').value = imgData;
-    document.getElementById('task-image').value = ''; 
-    if (imgData) {
-        document.getElementById('task-image-preview').src = imgData;
-        document.getElementById('task-image-preview').style.display = 'block';
-        document.getElementById('btn-clear-image').style.display = 'inline-block';
-    } else {
-        document.getElementById('task-image-preview').src = '';
-        document.getElementById('task-image-preview').style.display = 'none';
-        document.getElementById('btn-clear-image').style.display = 'none';
+    // URL
+    const urlsContainer = document.getElementById('urls-container');
+    urlsContainer.innerHTML = '';
+    if (task && task.urls && task.urls.length > 0) {
+        task.urls.forEach(u => addUrlField(u.name, u.url));
+    } else if (task && task.url) { // 古いデータの互換性
+        addUrlField('リンク', task.url);
+    }
+
+    // 画像
+    const imagesContainer = document.getElementById('images-container');
+    imagesContainer.innerHTML = '';
+    if (task && task.images && task.images.length > 0) {
+        task.images.forEach(i => addImageField(i.name, i.data));
+    } else if (task && task.image) { // 古いデータの互換性
+        addImageField('画像', task.image);
     }
 
     document.getElementById('task-memo').value = task ? task.memo : '';
@@ -469,14 +552,26 @@ function renderTasks() {
                 extraDatesHtml = `<span class="inline-date-wrapper" style="font-size:11px;">+追加 ${task.extraDates.length}日</span>`;
             }
 
+            // URLs
             let urlPreviewHtml = '';
-            if (task.url) {
-                urlPreviewHtml = `<a href="${task.url}" target="_blank" class="url-preview" onclick="event.stopPropagation()">🔗 ${task.url}</a>`;
+            let urlsToRender = task.urls || [];
+            if (task.url && urlsToRender.length === 0) urlsToRender = [{name: 'リンク', url: task.url}]; // 互換性
+            if (urlsToRender.length > 0) {
+                urlPreviewHtml = urlsToRender.map(u => `<a href="${u.url}" target="_blank" class="url-preview" onclick="event.stopPropagation()">🔗 ${u.name}</a>`).join(' ');
             }
 
+            // Images
             let imagePreviewHtml = '';
-            if (task.image) {
-                imagePreviewHtml = `<img src="${task.image}" class="attachment-preview" alt="添付画像" onclick="event.stopPropagation()">`;
+            let imagesToRender = task.images || [];
+            if (task.image && imagesToRender.length === 0) imagesToRender = [{name: '画像', data: task.image}]; // 互換性
+            if (imagesToRender.length > 0) {
+                imagePreviewHtml = `<div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:8px;">` + 
+                    imagesToRender.map(i => `
+                    <div style="display:flex; flex-direction:column; align-items:flex-start;">
+                        <span style="font-size:10px; color:var(--text-secondary);">${i.name}</span>
+                        <img src="${i.data}" class="attachment-preview" alt="${i.name}" style="margin-top:0;" onclick="event.stopPropagation()">
+                    </div>
+                `).join('') + `</div>`;
             }
 
             const subtasksHtml = task.subtasks && task.subtasks.length > 0 ? `
@@ -490,7 +585,14 @@ function renderTasks() {
                 </div>
             ` : '';
             
+            const startValue = task.startDate || '';
             const deadlineValue = task.deadline || '';
+            let dateHtml = '';
+            if (startValue && deadlineValue) {
+                dateHtml = `📅 <span style="font-size:12px; color:var(--text-secondary); margin-right:4px;">${startValue.replace('T', ' ')} 〜</span> <input type="datetime-local" class="inline-edit-date" value="${deadlineValue}">`;
+            } else {
+                dateHtml = `📅 <input type="datetime-local" class="inline-edit-date" value="${deadlineValue}">`;
+            }
 
             li.innerHTML = `
                 <div class="task-header">
@@ -499,7 +601,7 @@ function renderTasks() {
                         <input type="text" class="inline-edit-title" value="${task.title}" placeholder="タスク名">
                         <div class="task-meta">
                             <span class="inline-date-wrapper">
-                                📅 <input type="datetime-local" class="inline-edit-date" value="${deadlineValue}">
+                                ${dateHtml}
                             </span>
                             ${extraDatesHtml}
                             <span class="inline-date-wrapper">${priorityIcon}</span>
@@ -570,7 +672,14 @@ function renderTasks() {
 function isTaskOnDate(task, dateStr) {
     if (task.completed) return false;
     
-    if (task.deadline && task.deadline.startsWith(dateStr)) {
+    // 開始日から終了日(期限)までの期間チェック
+    if (task.startDate && task.deadline) {
+        const startDay = task.startDate.split('T')[0];
+        const endDay = task.deadline.split('T')[0];
+        if (dateStr >= startDay && dateStr <= endDay) {
+            return true;
+        }
+    } else if (task.deadline && task.deadline.startsWith(dateStr)) {
         return true;
     }
     
@@ -629,8 +738,28 @@ function renderCalendar(restoreSelectedDate = null) {
                 ? '<p style="color:var(--text-secondary)">タスクはありません</p>' 
                 : dayTasks.map(t => {
                     const timePart = (t.deadline && t.deadline.startsWith(dateStr) && t.deadline.includes('T')) ? t.deadline.split('T')[1] : '';
+                    
                     const extraBadge = (t.extraDates && t.extraDates.includes(dateStr)) ? ' <span style="font-size:10px; background:#eee; padding:2px 4px; border-radius:4px;">追加日</span>' : '';
-                    return `<div class="task-item" style="padding:10px; margin-bottom:8px;">${t.completed?'✓ ':'🟢 '}${t.title} <span style="font-size: 0.8em; color: gray;">${timePart}</span>${extraBadge}</div>`;
+                    
+                    const startDay = t.startDate ? t.startDate.split('T')[0] : null;
+                    const endDay = t.deadline ? t.deadline.split('T')[0] : null;
+                    const rangeBadge = (startDay && endDay && dateStr >= startDay && dateStr <= endDay) ? ' <span style="font-size:10px; background:#e0f7fa; color:#006064; padding:2px 4px; border-radius:4px;">期間中</span>' : '';
+                    
+                    // 画像プレビュー (サムネイル)
+                    let imgHtml = '';
+                    let imagesToRender = t.images || [];
+                    if (t.image && imagesToRender.length === 0) imagesToRender = [{name: '画像', data: t.image}]; 
+                    if (imagesToRender.length > 0) {
+                        imgHtml = `<div style="display:flex; gap:6px; flex-wrap:wrap; margin-top:8px;">` + 
+                            imagesToRender.map(img => `
+                            <img src="${img.data}" alt="${img.name}" title="${img.name}" style="height: 50px; width: 50px; object-fit: cover; border-radius: 6px; cursor: pointer; border: 1px solid var(--border-color);" onclick="event.stopPropagation(); window.open('${img.data}', '_blank');">
+                        `).join('') + `</div>`;
+                    }
+
+                    return `<div class="task-item" style="padding:12px; margin-bottom:8px; display:flex; flex-direction:column; align-items:flex-start;">
+                        <div style="font-weight:600; width:100%;">${t.completed?'✓ ':'🟢 '}${t.title} <span style="font-size: 0.8em; color: var(--text-secondary); font-weight:normal;">${timePart}</span>${extraBadge}${rangeBadge}</div>
+                        ${imgHtml}
+                    </div>`;
                 }).join('');
             
             taskHtml += `<button class="btn-outline full-width" style="margin-top:16px;" onclick="openModal(null, '${dateStr}')">＋ ${calDate.getMonth()+1}月${i}日にタスクを追加</button>`;
