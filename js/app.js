@@ -97,97 +97,17 @@ async function toggleTaskStatus(task) {
             newDateStr = (new Date(d - tzOffset)).toISOString().slice(0, 16);
         }
         
-        const nextTask = { ...task, id: generateId(), completed: false, deadline: newDateStr, notified: false, subtasks: task.subtasks.map(st => ({...st, completed: false})) };
+        const nextTask = { 
+            ...task, 
+            id: generateId(), 
+            completed: false, 
+            deadline: newDateStr, 
+            notified: false, 
+            subtasks: task.subtasks.map(st => ({...st, completed: false})) 
+        };
         await saveTask(nextTask);
     }
     return saveTask(task);
-}
-
-async function backupData() {
-    const tasks = await getAllTasks();
-    const blob = new Blob([JSON.stringify(tasks, null, 2)], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `TaskFlow_Backup_${new Date().toISOString().slice(0,10)}.json`;
-    a.click();
-    URL.revokeObjectURL(url);
-}
-
-async function restoreData(file) {
-    const text = await file.text();
-    const tasks = JSON.parse(text);
-    const currentTasks = await getAllTasks();
-    for (const t of currentTasks) await deleteTask(t.id);
-    for (const t of tasks) await saveTask(t);
-}
-
-function updateNotificationButtonUI() {
-    const notifyBtn = document.getElementById('btn-request-notify');
-    if (!notifyBtn) return;
-    
-    if (Notification.permission === 'granted') {
-        notifyBtn.textContent = '通知は許可されています';
-        notifyBtn.disabled = true;
-        notifyBtn.style.backgroundColor = 'var(--border-color)';
-        notifyBtn.style.color = 'var(--text-secondary)';
-    } else if (Notification.permission === 'denied') {
-        notifyBtn.textContent = '通知が拒否されています (設定から変更)';
-        notifyBtn.disabled = true;
-        notifyBtn.style.backgroundColor = 'var(--danger-color)';
-        notifyBtn.style.color = 'white';
-    }
-}
-
-function requestNotificationPermissionDirectly() {
-    if (!('Notification' in window)) {
-        alert('このブラウザはプッシュ通知に対応していません。iOSの場合はSafariから「ホーム画面に追加」を行ってアプリを開いてください。');
-        return;
-    }
-    
-    Notification.requestPermission().then(permission => {
-        if (permission === 'granted') {
-            alert('通知が許可されました！');
-            updateNotificationButtonUI();
-        } else {
-            alert('通知が許可されませんでした。設定アプリから許可してください。');
-            updateNotificationButtonUI();
-        }
-    }).catch(err => {
-        console.error('Notification permission error:', err);
-        alert('通知の許可中にエラーが発生しました。iOSが最新か確認してください。');
-    });
-}
-
-async function checkAndSendTaskNotification(task) {
-    if (Notification.permission !== 'granted') return;
-    if (!task.deadline || task.completed || !task.reminder || task.notified) return;
-
-    const reminderTime = new Date(task.reminder).getTime();
-    const now = new Date().getTime();
-    
-    if (now >= reminderTime) {
-        const title = `【リマインダー】TaskFlow`;
-        const formattedDeadline = task.deadline.replace('T', ' ');
-        const options = {
-            body: `「${task.title}」の期限が近づいています (${formattedDeadline})`,
-            icon: 'taskflow_icon.png',
-            badge: 'taskflow_icon.png',
-            tag: `task-reminder-${task.id}`,
-            data: { url: location.href }
-        };
-
-        if ('serviceWorker' in navigator) {
-            const registration = await navigator.serviceWorker.ready;
-            registration.showNotification(title, options);
-        } else {
-            new Notification(title, options);
-        }
-        
-        task.notified = true;
-        await saveTask(task);
-        loadTasks();
-    }
 }
 
 // --- PWA Update Module ---
@@ -291,6 +211,7 @@ function fetchAppVersion() {
 let currentTasks = [];
 let calDate = new Date();
 let selectedDateStr = null;
+let currentExtraDates = []; // 追加日程を一時保持する配列
 let currentStatStatus = null; // 'active' or 'completed'
 
 document.addEventListener('DOMContentLoaded', async () => {
@@ -299,14 +220,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         setupUI();
         await loadTasks();
         setupServiceWorker();
-        
-        updateNotificationButtonUI();
         fetchAppVersion();
-
-        setInterval(() => {
-            currentTasks.forEach(task => checkAndSendTaskNotification(task));
-        }, 60000);
-
     } catch(err) {
         alert("データベースの初期化に失敗しました。");
         console.error(err);
@@ -362,31 +276,8 @@ function setupUI() {
     
     document.getElementById('btn-cancel').addEventListener('click', () => modal.classList.add('hidden'));
     document.getElementById('modal-overlay').addEventListener('click', () => modal.classList.add('hidden'));
-    
-    document.querySelectorAll('.btn-quick').forEach(btn => {
-        btn.addEventListener('click', (e) => {
-            const days = e.target.dataset.days;
-            const months = e.target.dataset.months;
-            const today = new Date();
-            const tzOffset = today.getTimezoneOffset() * 60000;
-            const todayStr = (new Date(today - tzOffset)).toISOString().slice(0, 16);
-            
-            const input = document.getElementById('task-deadline');
-            const baseDate = input.value || todayStr;
-            if(days) input.value = calculateDate(baseDate, 'days', parseInt(days));
-            if(months) input.value = calculateDate(baseDate, 'months', parseInt(months));
-        });
-    });
 
-    document.getElementById('btn-apply-rel').addEventListener('click', () => {
-        const amount = parseInt(document.getElementById('rel-amount').value);
-        if(isNaN(amount) || amount < 1) return alert('日数を正しく入力してください');
-        const unit = document.getElementById('rel-unit').value;
-        const input = document.getElementById('task-deadline');
-        const baseDate = input.value || new Date().toISOString().slice(0, 16);
-        input.value = calculateDate(baseDate, unit, amount);
-    });
-
+    // サブタスク追加
     document.getElementById('btn-add-subtask').addEventListener('click', () => {
         const container = document.getElementById('subtasks-container');
         const id = generateId();
@@ -395,6 +286,40 @@ function setupUI() {
         div.innerHTML = `<input type="text" placeholder="サブタスクを入力..." data-id="${id}" class="st-input"><button type="button" class="btn-st-del">×</button>`;
         div.querySelector('.btn-st-del').onclick = () => div.remove();
         container.appendChild(div);
+    });
+
+    // 追加日程の処理
+    document.getElementById('btn-add-extra-date').addEventListener('click', () => {
+        const input = document.getElementById('extra-date-input');
+        if (input.value && !currentExtraDates.includes(input.value)) {
+            currentExtraDates.push(input.value);
+            renderExtraDates();
+            input.value = '';
+        }
+    });
+
+    // 画像ファイルのプレビュー処理
+    document.getElementById('task-image').addEventListener('change', function(e) {
+        const file = e.target.files[0];
+        if (file) {
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                const dataUrl = e.target.result;
+                document.getElementById('task-image-data').value = dataUrl;
+                document.getElementById('task-image-preview').src = dataUrl;
+                document.getElementById('task-image-preview').style.display = 'block';
+                document.getElementById('btn-clear-image').style.display = 'inline-block';
+            };
+            reader.readAsDataURL(file);
+        }
+    });
+
+    document.getElementById('btn-clear-image').addEventListener('click', () => {
+        document.getElementById('task-image').value = '';
+        document.getElementById('task-image-data').value = '';
+        document.getElementById('task-image-preview').src = '';
+        document.getElementById('task-image-preview').style.display = 'none';
+        document.getElementById('btn-clear-image').style.display = 'none';
     });
 
     document.getElementById('btn-save').addEventListener('click', async () => {
@@ -409,13 +334,13 @@ function setupUI() {
             id: document.getElementById('task-id').value || null,
             title,
             deadline: document.getElementById('task-deadline').value,
+            extraDates: currentExtraDates,
             priority: document.getElementById('task-priority').value,
-            category: document.getElementById('task-category').value,
             recurring: document.getElementById('task-recurring').value,
-            reminder: document.getElementById('task-reminder').value,
+            url: document.getElementById('task-url').value,
+            image: document.getElementById('task-image-data').value,
             memo: document.getElementById('task-memo').value,
             completed: document.getElementById('task-id').dataset.completed === 'true',
-            notified: false,
             subtasks
         };
         await saveTask(task);
@@ -431,27 +356,22 @@ function setupUI() {
     document.getElementById('search-input').addEventListener('input', renderTasks);
     document.getElementById('filter-status').addEventListener('change', renderTasks);
     document.getElementById('sort-select').addEventListener('change', renderTasks);
-
-    const notifyBtn = document.getElementById('btn-request-notify');
-    if(notifyBtn) notifyBtn.addEventListener('click', requestNotificationPermissionDirectly);
-
     document.getElementById('btn-manual-update').addEventListener('click', checkForUpdateManual);
+}
 
-    document.getElementById('btn-backup').addEventListener('click', backupData);
-    document.getElementById('input-restore').addEventListener('change', async (e) => {
-        if(e.target.files.length > 0) {
-            await restoreData(e.target.files[0]);
-            loadTasks();
-            alert('復元が完了しました');
-        }
-    });
-
-    document.getElementById('btn-clear-all').addEventListener('click', async () => {
-        if(confirm('⚠️ 本当にすべてのデータを消去しますか？\nこの操作は取り消せません。')) {
-            await clearAllData();
-            await loadTasks();
-            alert('すべてのデータを消去しました。');
-        }
+function renderExtraDates() {
+    const container = document.getElementById('extra-dates-container');
+    container.innerHTML = '';
+    currentExtraDates.sort(); 
+    currentExtraDates.forEach((dateStr, index) => {
+        const div = document.createElement('div');
+        div.className = 'extra-date-item';
+        div.innerHTML = `<span>${dateStr}</span> <button type="button" class="btn-remove-date" data-index="${index}">×</button>`;
+        div.querySelector('.btn-remove-date').onclick = (e) => {
+            currentExtraDates.splice(e.target.dataset.index, 1);
+            renderExtraDates();
+        };
+        container.appendChild(div);
     });
 }
 
@@ -467,21 +387,32 @@ function openModal(task = null, defaultDateStr = null) {
         const hh = String(now.getHours()).padStart(2, '0');
         const mm = String(now.getMinutes()).padStart(2, '0');
         defaultDeadline = `${defaultDateStr}T${hh}:${mm}`;
-    } else if (defaultDeadline && defaultDeadline.length === 10) {
-        defaultDeadline += 'T12:00'; 
     }
     document.getElementById('task-deadline').value = defaultDeadline;
     
+    currentExtraDates = task && task.extraDates ? [...task.extraDates] : [];
+    renderExtraDates();
+    document.getElementById('extra-date-input').value = '';
+
     document.getElementById('task-priority').value = task ? task.priority : '2';
-    document.getElementById('task-category').value = task ? task.category : '';
     document.getElementById('task-recurring').value = task ? task.recurring : 'none';
     
-    let defaultReminder = task ? (task.reminder || '') : '';
-    if (defaultReminder && !defaultReminder.includes('T')) defaultReminder = ''; 
-    document.getElementById('task-reminder').value = defaultReminder;
+    document.getElementById('task-url').value = task && task.url ? task.url : '';
     
+    const imgData = task && task.image ? task.image : '';
+    document.getElementById('task-image-data').value = imgData;
+    document.getElementById('task-image').value = ''; 
+    if (imgData) {
+        document.getElementById('task-image-preview').src = imgData;
+        document.getElementById('task-image-preview').style.display = 'block';
+        document.getElementById('btn-clear-image').style.display = 'inline-block';
+    } else {
+        document.getElementById('task-image-preview').src = '';
+        document.getElementById('task-image-preview').style.display = 'none';
+        document.getElementById('btn-clear-image').style.display = 'none';
+    }
+
     document.getElementById('task-memo').value = task ? task.memo : '';
-    document.getElementById('rel-amount').value = '';
     
     const stContainer = document.getElementById('subtasks-container');
     stContainer.innerHTML = '';
@@ -513,7 +444,7 @@ function renderTasks() {
     const status = document.getElementById('filter-status').value;
     const sort = document.getElementById('sort-select').value;
 
-    if(search) filtered = filtered.filter(t => t.title.toLowerCase().includes(search) || (t.category||'').toLowerCase().includes(search));
+    if(search) filtered = filtered.filter(t => t.title.toLowerCase().includes(search));
     if(status === 'active') filtered = filtered.filter(t => !t.completed);
     if(status === 'completed') filtered = filtered.filter(t => t.completed);
 
@@ -533,6 +464,21 @@ function renderTasks() {
             
             const priorityIcon = task.priority == 3 ? '🔥高' : (task.priority == 2 ? '⭐中' : '🌱低');
             
+            let extraDatesHtml = '';
+            if (task.extraDates && task.extraDates.length > 0) {
+                extraDatesHtml = `<span class="inline-date-wrapper" style="font-size:11px;">+追加 ${task.extraDates.length}日</span>`;
+            }
+
+            let urlPreviewHtml = '';
+            if (task.url) {
+                urlPreviewHtml = `<a href="${task.url}" target="_blank" class="url-preview" onclick="event.stopPropagation()">🔗 ${task.url}</a>`;
+            }
+
+            let imagePreviewHtml = '';
+            if (task.image) {
+                imagePreviewHtml = `<img src="${task.image}" class="attachment-preview" alt="添付画像" onclick="event.stopPropagation()">`;
+            }
+
             const subtasksHtml = task.subtasks && task.subtasks.length > 0 ? `
                 <div class="home-subtasks">
                     ${task.subtasks.map((st, idx) => `
@@ -543,11 +489,6 @@ function renderTasks() {
                     `).join('')}
                 </div>
             ` : '';
-            
-            let reminderDisplay = '';
-            if (task.reminder && !task.notified) {
-                reminderDisplay = `<span class="inline-date-wrapper">🔔 ${task.reminder.replace('T', ' ')}</span>`;
-            }
             
             const deadlineValue = task.deadline || '';
 
@@ -560,10 +501,11 @@ function renderTasks() {
                             <span class="inline-date-wrapper">
                                 📅 <input type="datetime-local" class="inline-edit-date" value="${deadlineValue}">
                             </span>
-                            ${reminderDisplay}
-                            ${task.category ? `<span class="inline-date-wrapper">📁 ${task.category}</span>` : ''}
+                            ${extraDatesHtml}
                             <span class="inline-date-wrapper">${priorityIcon}</span>
                         </div>
+                        ${urlPreviewHtml}
+                        ${imagePreviewHtml}
                         ${subtasksHtml}
                     </div>
                 </div>
@@ -604,40 +546,12 @@ function renderTasks() {
 
             const mainChk = li.querySelector('.task-chk');
             mainChk.addEventListener('change', async (e) => {
-                if (li.dataset.processing) {
-                    if (!e.target.checked) {
-                        clearTimeout(li.timeoutId);
-                        li.dataset.processing = "";
-                        li.classList.remove('completing');
-                        const btnUndo = li.querySelector('.btn-undo');
-                        if (btnUndo) btnUndo.remove();
-                    } else {
-                        e.preventDefault();
-                    }
-                    return;
-                }
-
                 if (e.target.checked && !task.completed) {
-                    li.dataset.processing = "true";
                     li.classList.add('completing');
-                    
-                    const btnUndo = document.createElement('button');
-                    btnUndo.className = 'btn-text btn-undo';
-                    btnUndo.innerText = '↺ 取り消し';
-                    li.querySelector('.task-actions').prepend(btnUndo);
-
-                    li.timeoutId = setTimeout(async () => {
+                    setTimeout(async () => {
                         await toggleTaskStatus(task);
                         loadTasks();
-                    }, 1500);
-
-                    btnUndo.addEventListener('click', () => {
-                        clearTimeout(li.timeoutId);
-                        li.dataset.processing = "";
-                        li.classList.remove('completing');
-                        e.target.checked = false; 
-                        btnUndo.remove();
-                    });
+                    }, 500);
                 } else {
                     await toggleTaskStatus(task);
                     loadTasks();
@@ -651,6 +565,20 @@ function renderTasks() {
             list.appendChild(li);
         });
     }
+}
+
+function isTaskOnDate(task, dateStr) {
+    if (task.completed) return false;
+    
+    if (task.deadline && task.deadline.startsWith(dateStr)) {
+        return true;
+    }
+    
+    if (task.extraDates && task.extraDates.includes(dateStr)) {
+        return true;
+    }
+
+    return false;
 }
 
 function renderCalendar(restoreSelectedDate = null) {
@@ -679,7 +607,9 @@ function renderCalendar(restoreSelectedDate = null) {
 
     for(let i=1; i<=daysInMonth; i++) {
         const dateStr = `${calDate.getFullYear()}-${String(calDate.getMonth()+1).padStart(2,'0')}-${String(i).padStart(2,'0')}`;
-        const hasTask = currentTasks.some(t => t.deadline && t.deadline.startsWith(dateStr) && !t.completed);
+        
+        const hasTask = currentTasks.some(t => isTaskOnDate(t, dateStr));
+        
         const div = document.createElement('div');
         div.className = `cal-day ${hasTask ? 'has-task' : ''}`;
         if (dateStr === selectedDateStr) div.classList.add('selected-day');
@@ -694,12 +624,13 @@ function renderCalendar(restoreSelectedDate = null) {
             div.classList.add('selected-day');
             selectedDateStr = dateStr;
 
-            const dayTasks = currentTasks.filter(t => t.deadline && t.deadline.startsWith(dateStr));
+            const dayTasks = currentTasks.filter(t => isTaskOnDate(t, dateStr));
             let taskHtml = dayTasks.length === 0 
                 ? '<p style="color:var(--text-secondary)">タスクはありません</p>' 
                 : dayTasks.map(t => {
-                    const timePart = t.deadline.includes('T') ? t.deadline.split('T')[1] : '';
-                    return `<div class="task-item" style="padding:10px; margin-bottom:8px;">${t.completed?'✓ ':'🟢 '}${t.title} <span style="font-size: 0.8em; color: gray;">${timePart}</span></div>`;
+                    const timePart = (t.deadline && t.deadline.startsWith(dateStr) && t.deadline.includes('T')) ? t.deadline.split('T')[1] : '';
+                    const extraBadge = (t.extraDates && t.extraDates.includes(dateStr)) ? ' <span style="font-size:10px; background:#eee; padding:2px 4px; border-radius:4px;">追加日</span>' : '';
+                    return `<div class="task-item" style="padding:10px; margin-bottom:8px;">${t.completed?'✓ ':'🟢 '}${t.title} <span style="font-size: 0.8em; color: gray;">${timePart}</span>${extraBadge}</div>`;
                 }).join('');
             
             taskHtml += `<button class="btn-outline full-width" style="margin-top:16px;" onclick="openModal(null, '${dateStr}')">＋ ${calDate.getMonth()+1}月${i}日にタスクを追加</button>`;
@@ -711,7 +642,6 @@ function renderCalendar(restoreSelectedDate = null) {
     }
 }
 
-// 統計画面の拡張機能
 function toggleStatDetails(status) {
     const detailsCard = document.getElementById('stat-details');
     const cardActive = document.getElementById('card-stat-active');
