@@ -104,7 +104,7 @@ async function toggleTaskStatus(task) {
             const tzOffset = d.getTimezoneOffset() * 60000;
             newDateStr = (new Date(d - tzOffset)).toISOString().slice(0, 16);
             
-            // startDateも同じ日数だけシフト
+            // startDateもシフト
             if(task.startDate && task.deadline) {
                 const diffTime = Math.abs(new Date(newDateStr) - new Date(task.deadline));
                 const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
@@ -359,7 +359,7 @@ function setupUI() {
             subtasks
         };
         
-        // 後方互換性(単一プロパティのクリーニング)
+        // 後方互換性
         task.url = '';
         task.image = '';
 
@@ -509,7 +509,9 @@ function openModal(task = null, defaultDateStr = null) {
             stContainer.appendChild(div);
         });
     }
-    document.getElementById('task-modal').classList.remove('hidden');
+    
+    const modal = document.getElementById('task-modal');
+    modal.classList.remove('hidden');
 }
 
 async function loadTasks() {
@@ -555,7 +557,7 @@ function renderTasks() {
             // URLs
             let urlPreviewHtml = '';
             let urlsToRender = task.urls || [];
-            if (task.url && urlsToRender.length === 0) urlsToRender = [{name: 'リンク', url: task.url}]; // 互換性
+            if (task.url && urlsToRender.length === 0) urlsToRender = [{name: 'リンク', url: task.url}]; 
             if (urlsToRender.length > 0) {
                 urlPreviewHtml = urlsToRender.map(u => `<a href="${u.url}" target="_blank" class="url-preview" onclick="event.stopPropagation()">🔗 ${u.name}</a>`).join(' ');
             }
@@ -563,7 +565,7 @@ function renderTasks() {
             // Images
             let imagePreviewHtml = '';
             let imagesToRender = task.images || [];
-            if (task.image && imagesToRender.length === 0) imagesToRender = [{name: '画像', data: task.image}]; // 互換性
+            if (task.image && imagesToRender.length === 0) imagesToRender = [{name: '画像', data: task.image}]; 
             if (imagesToRender.length > 0) {
                 imagePreviewHtml = `<div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:8px;">` + 
                     imagesToRender.map(i => `
@@ -669,6 +671,7 @@ function renderTasks() {
     }
 }
 
+// カレンダー表示用ロジック
 function isTaskOnDate(task, dateStr) {
     if (task.completed) return false;
     
@@ -738,14 +741,12 @@ function renderCalendar(restoreSelectedDate = null) {
                 ? '<p style="color:var(--text-secondary)">タスクはありません</p>' 
                 : dayTasks.map(t => {
                     const timePart = (t.deadline && t.deadline.startsWith(dateStr) && t.deadline.includes('T')) ? t.deadline.split('T')[1] : '';
-                    
                     const extraBadge = (t.extraDates && t.extraDates.includes(dateStr)) ? ' <span style="font-size:10px; background:#eee; padding:2px 4px; border-radius:4px;">追加日</span>' : '';
-                    
                     const startDay = t.startDate ? t.startDate.split('T')[0] : null;
                     const endDay = t.deadline ? t.deadline.split('T')[0] : null;
                     const rangeBadge = (startDay && endDay && dateStr >= startDay && dateStr <= endDay) ? ' <span style="font-size:10px; background:#e0f7fa; color:#006064; padding:2px 4px; border-radius:4px;">期間中</span>' : '';
                     
-                    // 画像プレビュー (サムネイル)
+                    // サムネイル表示
                     let imgHtml = '';
                     let imagesToRender = t.images || [];
                     if (t.image && imagesToRender.length === 0) imagesToRender = [{name: '画像', data: t.image}]; 
@@ -756,14 +757,26 @@ function renderCalendar(restoreSelectedDate = null) {
                         `).join('') + `</div>`;
                     }
 
-                    return `<div class="task-item" style="padding:12px; margin-bottom:8px; display:flex; flex-direction:column; align-items:flex-start;">
+                    // ★カレンダータスクをタップで詳細を開く
+                    return `<div class="task-item cal-task-clickable" data-task-id="${t.id}" style="padding:12px; margin-bottom:8px; display:flex; flex-direction:column; align-items:flex-start; cursor:pointer; border: 1px solid var(--border-color); border-radius: 8px;">
                         <div style="font-weight:600; width:100%;">${t.completed?'✓ ':'🟢 '}${t.title} <span style="font-size: 0.8em; color: var(--text-secondary); font-weight:normal;">${timePart}</span>${extraBadge}${rangeBadge}</div>
                         ${imgHtml}
                     </div>`;
                 }).join('');
             
             taskHtml += `<button class="btn-outline full-width" style="margin-top:16px;" onclick="openModal(null, '${dateStr}')">＋ ${calDate.getMonth()+1}月${i}日にタスクを追加</button>`;
-            document.getElementById('calendar-tasks').innerHTML = `<h3>${calDate.getMonth()+1}月${i}日の予定</h3><br>` + taskHtml;
+            
+            const container = document.getElementById('calendar-tasks');
+            container.innerHTML = `<h3>${calDate.getMonth()+1}月${i}日の予定</h3><br>` + taskHtml;
+            
+            // タスククリックでモーダルを開くイベントを付与
+            container.querySelectorAll('.cal-task-clickable').forEach(el => {
+                el.addEventListener('click', (e) => {
+                    const taskId = el.getAttribute('data-task-id');
+                    const task = currentTasks.find(t => t.id === taskId);
+                    if(task) openModal(task);
+                });
+            });
         };
         grid.appendChild(div);
         

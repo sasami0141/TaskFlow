@@ -39,9 +39,7 @@
             background-color: white;
         }
 
-        /* ---------------------------------
-           直感的なカスタムチェックボックス (丸型iOSスタイル)
-           --------------------------------- */
+        /* カスタムチェックボックス */
         input[type="checkbox"] {
             appearance: none;
             -webkit-appearance: none;
@@ -59,192 +57,94 @@
             display: inline-block;
             vertical-align: middle;
         }
-        [data-theme="dark"] input[type="checkbox"] {
-            border-color: #555;
-        }
+        [data-theme="dark"] input[type="checkbox"] { border-color: #555; }
         input[type="checkbox"]:checked {
-            background-color: #34c759;
-            border-color: #34c759;
-            transform: scale(1.1);
+            background-color: #34c759; border-color: #34c759; transform: scale(1.1);
         }
         [data-theme="dark"] input[type="checkbox"]:checked {
-            background-color: #30d158;
-            border-color: #30d158;
+            background-color: #30d158; border-color: #30d158;
         }
         input[type="checkbox"]:checked::after {
-            content: '';
-            position: absolute;
-            top: 4px;
-            left: 8px;
-            width: 5px;
-            height: 10px;
-            border: solid white;
-            border-width: 0 2px 2px 0;
-            transform: rotate(45deg);
+            content: ''; position: absolute; top: 4px; left: 8px; width: 5px; height: 10px;
+            border: solid white; border-width: 0 2px 2px 0; transform: rotate(45deg);
         }
         
-        .task-header {
-            align-items: flex-start;
-            gap: 12px;
-        }
+        .task-header { align-items: flex-start; gap: 12px; }
 
-        /* インライン編集用スタイル */
         .inline-edit-title {
-            font-size: 16px;
-            font-weight: 600;
-            border: 1px solid transparent;
-            background: transparent;
-            width: 100%;
-            color: var(--text-color);
-            padding: 2px 4px;
-            margin: 0 -4px 4px -4px;
-            border-radius: 4px;
-            font-family: inherit;
-            transition: all 0.2s;
+            font-size: 16px; font-weight: 600; border: 1px solid transparent; background: transparent;
+            width: 100%; color: var(--text-color); padding: 2px 4px; margin: 0 -4px 4px -4px;
+            border-radius: 4px; font-family: inherit; transition: all 0.2s;
         }
-        .inline-edit-title:focus {
-            outline: none;
-            border-color: var(--primary-color);
-            background: var(--bg-color);
-        }
-        .completed .inline-edit-title {
-            text-decoration: line-through;
-            color: var(--text-secondary);
-        }
+        .inline-edit-title:focus { outline: none; border-color: var(--primary-color); background: var(--bg-color); }
+        .completed .inline-edit-title { text-decoration: line-through; color: var(--text-secondary); }
         
         .inline-edit-date {
-            font-size: 12px;
-            border: 1px solid transparent;
-            background: transparent;
-            color: var(--text-secondary);
-            font-family: inherit;
-            padding: 2px;
-            margin: 0;
-            border-radius: 4px;
+            font-size: 12px; border: 1px solid transparent; background: transparent;
+            color: var(--text-secondary); font-family: inherit; padding: 2px; margin: 0; border-radius: 4px;
         }
-        .inline-edit-date:focus {
-            outline: none;
-            color: var(--primary-color);
-            border-color: var(--primary-color);
-            background: var(--bg-color);
-        }
-        .inline-date-wrapper {
-            display: flex; 
-            align-items: center; 
-            gap: 2px;
-            background-color: rgba(0,0,0,0.03);
-            padding: 2px 6px;
-            border-radius: 12px;
-        }
-        [data-theme="dark"] .inline-date-wrapper {
-            background-color: rgba(255,255,255,0.1);
-        }
-        
-        .task-meta {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            flex-wrap: wrap;
-            margin-top: 4px;
-        }
+        .inline-edit-date:focus { outline: none; color: var(--primary-color); border-color: var(--primary-color); background: var(--bg-color); }
+        .inline-date-wrapper { display: flex; align-items: center; gap: 2px; background-color: rgba(0,0,0,0.03); padding: 2px 6px; border-radius: 12px; }
+        [data-theme="dark"] .inline-date-wrapper { background-color: rgba(255,255,255,0.1); }
+        .task-meta { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-top: 4px; }
 
-        /* 添付ファイルプレビュー用スタイル */
-        .attachment-preview {
-            max-width: 100%;
-            max-height: 150px;
-            border-radius: 8px;
-            margin-top: 4px;
-            object-fit: cover;
-            display: block;
-        }
-        .url-preview {
-            display: inline-block;
-            margin-top: 4px;
-            font-size: 12px;
-            color: #007aff;
-            background-color: rgba(0, 122, 255, 0.1);
-            padding: 4px 8px;
-            border-radius: 12px;
-            text-decoration: none;
-            word-break: break-all;
-        }
+        .attachment-preview { max-width: 100%; max-height: 150px; border-radius: 8px; margin-top: 4px; object-fit: cover; display: block; }
+        .url-preview { display: inline-block; margin-top: 4px; font-size: 12px; color: #007aff; background-color: rgba(0, 122, 255, 0.1); padding: 4px 8px; border-radius: 12px; text-decoration: none; word-break: break-all; }
         
-        .extra-date-item {
-            display: inline-flex;
-            align-items: center;
-            background: var(--bg-color);
-            padding: 4px 8px;
-            border-radius: 12px;
-            font-size: 12px;
-            margin: 4px 4px 0 0;
-            border: 1px solid var(--border-color);
-        }
-        .btn-remove-date {
-            background: transparent;
-            border: none;
-            color: var(--danger-color);
-            margin-left: 4px;
-            cursor: pointer;
-            font-weight: bold;
-        }
+        .extra-date-item { display: inline-flex; align-items: center; background: var(--bg-color); padding: 4px 8px; border-radius: 12px; font-size: 12px; margin: 4px 4px 0 0; border: 1px solid var(--border-color); }
+        .btn-remove-date { background: transparent; border: none; color: var(--danger-color); margin-left: 4px; cursor: pointer; font-weight: bold; }
 
-        /* モーダルのスクロール追従スタイル */
+        /* =========================================
+           モーダル（タスク追加）のヘッダー・フッター完全固定化 
+           (既存のstyle.cssを強制的に上書きします)
+           ========================================= */
+        .modal {
+            display: flex !important;
+            align-items: center !important;
+            justify-content: center !important;
+            padding: 20px !important;
+            box-sizing: border-box !important;
+        }
         .modal-content {
-            display: flex;
-            flex-direction: column;
-            max-height: 90vh;
-            padding: 0;
-            overflow: hidden;
-            background: var(--card-bg);
+            display: flex !important;
+            flex-direction: column !important;
+            max-height: 85vh !important; /* 画面に収める */
+            padding: 0 !important;
+            overflow: hidden !important;
+            background: var(--card-bg) !important;
+            width: 100% !important;
+            max-width: 500px !important;
+            border-radius: 12px !important;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2) !important;
         }
         .modal-header {
-            padding: 20px 20px 10px 20px;
-            border-bottom: 1px solid var(--border-color);
-            background: var(--card-bg);
-            border-top-left-radius: 12px;
-            border-top-right-radius: 12px;
-            flex-shrink: 0;
+            padding: 16px 20px !important;
+            border-bottom: 1px solid var(--border-color) !important;
+            background: var(--card-bg) !important;
+            flex-shrink: 0 !important; /* 縮小させない（固定） */
+            display: flex !important;
+            justify-content: space-between !important;
+            align-items: center !important;
         }
+        .modal-header h2 { margin: 0 !important; font-size: 18px !important; }
         .modal-body {
-            padding: 10px 20px;
-            overflow-y: auto;
-            flex: 1;
+            padding: 16px 20px !important;
+            overflow-y: auto !important; /* 中央だけスクロール */
+            flex: 1 1 auto !important;
+            -webkit-overflow-scrolling: touch !important; /* iOSスムーズスクロール */
         }
         .modal-actions {
-            padding: 15px 20px 20px 20px;
-            border-top: 1px solid var(--border-color);
-            background: var(--card-bg);
-            border-bottom-left-radius: 12px;
-            border-bottom-right-radius: 12px;
-            flex-shrink: 0;
+            padding: 16px 20px !important;
+            border-top: 1px solid var(--border-color) !important;
+            background: var(--card-bg) !important;
+            flex-shrink: 0 !important; /* 縮小させない（固定） */
         }
 
-        .multi-item {
-            display: flex;
-            flex-direction: column;
-            gap: 8px;
-            background: var(--bg-color);
-            padding: 12px;
-            border-radius: 8px;
-            margin-bottom: 12px;
-            position: relative;
-        }
-        .multi-item-row {
-            display: flex;
-            gap: 8px;
-            align-items: center;
-        }
-        .btn-remove-item {
-            position: absolute;
-            top: 4px;
-            right: 4px;
-            background: transparent;
-            border: none;
-            color: var(--danger-color);
-            font-size: 18px;
-            cursor: pointer;
-            line-height: 1;
-        }
+        .multi-item { display: flex; flex-direction: column; gap: 8px; background: var(--bg-color); padding: 12px; border-radius: 8px; margin-bottom: 12px; position: relative; }
+        .multi-item-row { display: flex; gap: 8px; align-items: center; }
+        .btn-remove-item { position: absolute; top: 4px; right: 4px; background: transparent; border: none; color: var(--danger-color); font-size: 18px; cursor: pointer; line-height: 1; }
+        
+        .cal-task-clickable:active { opacity: 0.7; }
     </style>
 </head>
 <body>
@@ -343,24 +243,17 @@
                 </div>
 
                 <div class="divider"></div>
-
                 <h3 style="margin-top: 0; font-size: 14px; color: var(--text-secondary);">データ管理</h3>
                 <p class="settings-desc">📝 データは安全にこの端末内にのみ保存されています。</p>
-                
                 <div style="margin-bottom: 20px;">
                     <button id="btn-request-notify" class="btn-primary full-width" style="background-color: #34c759;">🔔 通知を許可する</button>
                     <p style="font-size:12px; color:var(--text-secondary); margin-top:4px;">※iOSの場合は「ホーム画面に追加」してから許可してください。</p>
                 </div>
-                
                 <button id="btn-backup" class="btn-primary full-width">データのバックアップ (JSON)</button>
-                
                 <div class="divider"></div>
-                
                 <label for="input-restore" class="file-label btn-secondary full-width">データの復元 (JSON読込)</label>
                 <input type="file" id="input-restore" accept=".json" style="display:none;">
-
                 <div class="divider"></div>
-                
                 <button id="btn-clear-all" class="btn-outline full-width" style="border-color:var(--danger-color); color:var(--danger-color);">⚠️ 全データを消去する</button>
             </div>
         </section>
@@ -368,34 +261,17 @@
 
     <button id="fab-add" class="fab">+</button>
 
-    <nav class="bottom-nav">
-        <button class="nav-item active" data-target="view-tasks">
-            <div class="nav-icon">📋</div>
-            <div class="nav-label">タスク</div>
-        </button>
-        <button class="nav-item" data-target="view-calendar">
-            <div class="nav-icon">📅</div>
-            <div class="nav-label">カレンダー</div>
-        </button>
-        <button class="nav-item" data-target="view-stats">
-            <div class="nav-icon">📊</div>
-            <div class="nav-label">統計</div>
-        </button>
-        <button class="nav-item" data-target="view-settings">
-            <div class="nav-icon">⚙️</div>
-            <div class="nav-label">設定</div>
-        </button>
-    </nav>
-
-    <!-- Task Modal -->
+    <!-- モーダル（スクロール対応） -->
     <div id="task-modal" class="modal hidden">
         <div class="modal-overlay" id="modal-overlay"></div>
         <div class="modal-content">
+            <!-- ヘッダー（固定） -->
             <div class="modal-header">
                 <h2 id="modal-title">詳細を編集</h2>
-                <button type="button" id="btn-cancel" class="btn-close">×</button>
+                <button type="button" id="btn-cancel" class="btn-close" style="font-size:24px; background:none; border:none; color:var(--text-color); cursor:pointer;">×</button>
             </div>
             
+            <!-- ボディ（スクロールエリア） -->
             <div class="modal-body">
                 <input type="hidden" id="task-id">
                 
@@ -406,7 +282,7 @@
                 
                 <div class="form-row">
                     <div class="form-group half">
-                        <label>開始日時 (任意)</label>
+                        <label>開始日時 (期間始まり)</label>
                         <input type="datetime-local" id="task-start">
                     </div>
                     <div class="form-group half">
@@ -414,9 +290,10 @@
                         <input type="datetime-local" id="task-deadline">
                     </div>
                 </div>
+                <p style="font-size:11px; color:var(--text-secondary); margin-top:-8px; margin-bottom:12px;">※日をまたぐ予定の場合は「開始」と「終了」を設定してください。</p>
                 
                 <div class="form-group">
-                    <div style="margin-top: 4px; background: var(--bg-color); padding: 12px; border-radius: var(--border-radius-md);">
+                    <div style="background: var(--bg-color); padding: 12px; border-radius: var(--border-radius-md);">
                         <label style="font-size: 12px; font-weight:bold;">📅 追加の日程指定 (飛び石・例外日など)</label>
                         <p style="font-size: 11px; color: var(--text-secondary); margin-bottom: 8px;">連続しない複数の日付でタスクを行いたい場合に追加してください。</p>
                         <div class="form-row">
@@ -456,14 +333,12 @@
                     </div>
                 </div>
 
-                <!-- URL複数追加 -->
                 <div class="form-group">
                     <label>添付URL</label>
                     <div id="urls-container"></div>
                     <button type="button" id="btn-add-url" class="btn-outline">+ 🔗 URLを追加</button>
                 </div>
 
-                <!-- 画像複数追加 -->
                 <div class="form-group">
                     <label>添付画像</label>
                     <div id="images-container"></div>
@@ -482,11 +357,31 @@
                 </div>
             </div>
 
+            <!-- フッター（固定） -->
             <div class="modal-actions">
                 <button type="button" id="btn-save" class="btn-primary full-width">保存する</button>
             </div>
         </div>
     </div>
+
+    <nav class="bottom-nav">
+        <button class="nav-item active" data-target="view-tasks">
+            <div class="nav-icon">📋</div>
+            <div class="nav-label">タスク</div>
+        </button>
+        <button class="nav-item" data-target="view-calendar">
+            <div class="nav-icon">📅</div>
+            <div class="nav-label">カレンダー</div>
+        </button>
+        <button class="nav-item" data-target="view-stats">
+            <div class="nav-icon">📊</div>
+            <div class="nav-label">統計</div>
+        </button>
+        <button class="nav-item" data-target="view-settings">
+            <div class="nav-icon">⚙️</div>
+            <div class="nav-label">設定</div>
+        </button>
+    </nav>
 
     <script src="js/app.js"></script>
 </body>
