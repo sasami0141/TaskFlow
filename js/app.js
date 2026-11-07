@@ -220,7 +220,6 @@ function setupServiceWorker() {
 function showUpdateBanner() {
     const banner = document.getElementById('update-banner');
     if (banner) {
-        // Guaranteed to show via explicit style override
         banner.style.display = 'flex';
         const btn = document.getElementById('btn-update');
         if (btn) btn.disabled = false;
@@ -229,7 +228,7 @@ function showUpdateBanner() {
 
 function applyUpdate() {
     const banner = document.getElementById('update-banner');
-    if (banner) banner.style.display = 'none'; // Hide immediately
+    if (banner) banner.style.display = 'none';
     
     const btn = document.getElementById('btn-update');
     if (btn) btn.disabled = true;
@@ -245,6 +244,7 @@ function applyUpdate() {
 // --- Application Logic ---
 let currentTasks = [];
 let calDate = new Date();
+let selectedDateStr = null;
 
 document.addEventListener('DOMContentLoaded', async () => {
     try {
@@ -271,7 +271,7 @@ function setupUI() {
     const banner = document.getElementById('update-banner');
     if(btnUpdate) btnUpdate.addEventListener('click', applyUpdate);
     if(btnDismiss) btnDismiss.addEventListener('click', () => {
-        if(banner) banner.style.display = 'none'; // Dismiss banner explicitly
+        if(banner) banner.style.display = 'none';
     });
 
     document.getElementById('theme-toggle').addEventListener('click', () => {
@@ -296,7 +296,15 @@ function setupUI() {
     });
 
     const modal = document.getElementById('task-modal');
-    document.getElementById('fab-add').addEventListener('click', () => openModal());
+    document.getElementById('fab-add').addEventListener('click', () => {
+        const viewCal = document.getElementById('view-calendar');
+        if (viewCal.classList.contains('active') && selectedDateStr) {
+            openModal(null, selectedDateStr);
+        } else {
+            openModal();
+        }
+    });
+    
     document.getElementById('btn-cancel').addEventListener('click', () => modal.classList.add('hidden'));
     document.getElementById('modal-overlay').addEventListener('click', () => modal.classList.add('hidden'));
     
@@ -356,8 +364,14 @@ function setupUI() {
             subtasks
         };
         await saveTask(task);
+        
         modal.classList.add('hidden');
         loadTasks();
+        
+        // カレンダー画面だった場合は再レンダリングして選択状態を維持
+        if (document.getElementById('view-calendar').classList.contains('active')) {
+            renderCalendar(selectedDateStr);
+        }
     });
 
     document.getElementById('search-input').addEventListener('input', renderTasks);
@@ -385,14 +399,21 @@ function setupUI() {
     });
 }
 
-function openModal(task = null) {
+function openModal(task = null, defaultDateStr = null) {
     document.getElementById('modal-title').innerText = task ? 'タスクを編集' : '新しいタスク';
     document.getElementById('task-id').value = task ? task.id : '';
     document.getElementById('task-id').dataset.completed = task ? task.completed : 'false';
     document.getElementById('task-title').value = task ? task.title : '';
     
     let defaultDeadline = task ? task.deadline : '';
-    if (defaultDeadline && defaultDeadline.length === 10) defaultDeadline += 'T12:00'; 
+    if (!defaultDeadline && defaultDateStr) {
+        const now = new Date();
+        const hh = String(now.getHours()).padStart(2, '0');
+        const mm = String(now.getMinutes()).padStart(2, '0');
+        defaultDeadline = `${defaultDateStr}T${hh}:${mm}`;
+    } else if (defaultDeadline && defaultDeadline.length === 10) {
+        defaultDeadline += 'T12:00'; 
+    }
     document.getElementById('task-deadline').value = defaultDeadline;
     
     document.getElementById('task-priority').value = task ? task.priority : '2';
@@ -548,7 +569,9 @@ function renderTasks() {
     }
 }
 
-function renderCalendar() {
+function renderCalendar(restoreSelectedDate = null) {
+    if (!restoreSelectedDate) selectedDateStr = null;
+    
     document.getElementById('cal-month').innerText = `${calDate.getFullYear()}年 ${calDate.getMonth()+1}月`;
     document.getElementById('cal-prev').onclick = () => { calDate.setMonth(calDate.getMonth()-1); renderCalendar(); };
     document.getElementById('cal-next').onclick = () => { calDate.setMonth(calDate.getMonth()+1); renderCalendar(); };
@@ -575,18 +598,40 @@ function renderCalendar() {
         const hasTask = currentTasks.some(t => t.deadline && t.deadline.startsWith(dateStr) && !t.completed);
         const div = document.createElement('div');
         div.className = `cal-day ${hasTask ? 'has-task' : ''}`;
+        if (dateStr === selectedDateStr) div.classList.add('selected-day');
         div.innerText = i;
+        
         div.onclick = () => {
+            if (selectedDateStr === dateStr) {
+                // 同じ日をもう一度タップしたらモーダルを開く
+                openModal(null, dateStr);
+                return;
+            }
+
+            // 選択状態の更新
+            document.querySelectorAll('.cal-day').forEach(el => el.classList.remove('selected-day'));
+            div.classList.add('selected-day');
+            selectedDateStr = dateStr;
+
             const dayTasks = currentTasks.filter(t => t.deadline && t.deadline.startsWith(dateStr));
-            const taskHtml = dayTasks.length === 0 
+            let taskHtml = dayTasks.length === 0 
                 ? '<p style="color:var(--text-secondary)">タスクはありません</p>' 
                 : dayTasks.map(t => {
                     const timePart = t.deadline.includes('T') ? t.deadline.split('T')[1] : '';
                     return `<div class="task-item" style="padding:10px; margin-bottom:8px;">${t.completed?'✓ ':'🟢 '}${t.title} <span style="font-size: 0.8em; color: gray;">${timePart}</span></div>`;
                 }).join('');
+            
+            // 下部にタスク追加ボタンも親切表示
+            taskHtml += `<button class="btn-outline full-width" style="margin-top:16px;" onclick="openModal(null, '${dateStr}')">＋ ${calDate.getMonth()+1}月${i}日にタスクを追加</button>`;
+            
             document.getElementById('calendar-tasks').innerHTML = `<h3>${calDate.getMonth()+1}月${i}日の予定</h3><br>` + taskHtml;
         };
         grid.appendChild(div);
+        
+        // 復元された選択日があれば詳細を自動展開
+        if (dateStr === restoreSelectedDate) {
+            div.onclick();
+        }
     }
 }
 

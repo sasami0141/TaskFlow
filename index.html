@@ -8,9 +8,21 @@
     <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#f2f2f7">
     <link rel="apple-touch-icon" href="taskflow_icon.png">
+    <style>
+        /* カレンダーの選択された日のスタイル */
+        .cal-day.selected-day {
+            background-color: #007aff;
+            color: white;
+            border-radius: 50%;
+            font-weight: bold;
+            box-shadow: 0 2px 4px rgba(0,122,255,0.3);
+        }
+        [data-theme="dark"] .cal-day.selected-day {
+            background-color: #0a84ff;
+        }
+    </style>
 </head>
 <body>
-    <!-- Update Notification Banner (Fixed with inline CSS to guarantee it is hidden by default) -->
     <div id="update-banner" style="display: none; position: fixed; top: 0; left: 0; right: 0; background-color: #34c759; color: white; padding: 12px 16px; justify-content: space-between; align-items: center; z-index: 9999; box-shadow: 0 4px 12px rgba(0,0,0,0.15);">
         <p style="margin: 0; font-size: 14px; font-weight: bold;">新しいバージョンが利用可能です！</p>
         <div style="display: flex; align-items: center;">
@@ -25,7 +37,6 @@
     </header>
 
     <main class="app-main">
-        <!-- Tasks View -->
         <section id="view-tasks" class="view active">
             <div class="controls card">
                 <input type="text" id="search-input" placeholder="🔍 タスクを検索...">
@@ -51,7 +62,6 @@
             <ul id="task-list"></ul>
         </section>
 
-        <!-- Calendar View -->
         <section id="view-calendar" class="view">
             <div class="card">
                 <div class="calendar-header">
@@ -64,7 +74,6 @@
             <div id="calendar-tasks" class="calendar-task-list"></div>
         </section>
 
-        <!-- Stats View -->
         <section id="view-stats" class="view">
             <h2 class="section-title">あなたの進捗</h2>
             <div class="stat-grid">
@@ -86,7 +95,6 @@
             </div>
         </section>
 
-        <!-- Settings View -->
         <section id="view-settings" class="view">
             <h2 class="section-title">データ管理</h2>
             <div class="card settings-card">
@@ -113,7 +121,6 @@
 
     <button id="fab-add" class="fab">+</button>
 
-    <!-- Bottom Navigation -->
     <nav class="bottom-nav">
         <button class="nav-item active" data-target="view-tasks">
             <div class="nav-icon">📋</div>
