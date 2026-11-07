@@ -96,10 +96,14 @@
 
         /* =========================================
            モーダル（タスク追加）のヘッダー・フッター完全固定化 
-           (既存のstyle.cssを強制的に上書きします)
            ========================================= */
-        .modal {
+        .modal.hidden {
+            display: none !important;
+        }
+        .modal:not(.hidden) {
             display: flex !important;
+        }
+        .modal {
             align-items: center !important;
             justify-content: center !important;
             padding: 20px !important;
