@@ -220,31 +220,24 @@ function setupServiceWorker() {
 function showUpdateBanner() {
     const banner = document.getElementById('update-banner');
     if (banner) {
-        banner.classList.remove('hidden');
-        // Reset button state just in case
+        // Guaranteed to show via explicit style override
+        banner.style.display = 'flex';
         const btn = document.getElementById('btn-update');
         if (btn) btn.disabled = false;
     }
 }
 
 function applyUpdate() {
-    // 1. すぐにバナーを隠してボタンを無効化（連打防止とUIのスタック解消）
     const banner = document.getElementById('update-banner');
-    if (banner) banner.classList.add('hidden');
+    if (banner) banner.style.display = 'none'; // Hide immediately
     
     const btn = document.getElementById('btn-update');
     if (btn) btn.disabled = true;
 
-    // 2. Service Workerに更新を指示
     if (newWorker) {
         newWorker.postMessage({ action: 'skipWaiting' });
-        
-        // iOS Safariなどでcontrollerchangeが発火しない場合のフェイルセーフ
-        setTimeout(() => {
-            window.location.reload();
-        }, 1000);
+        setTimeout(() => { window.location.reload(); }, 1000);
     } else {
-        // newWorkerが取得できていない場合の保険
         window.location.reload();
     }
 }
@@ -277,7 +270,9 @@ function setupUI() {
     const btnDismiss = document.getElementById('btn-update-dismiss');
     const banner = document.getElementById('update-banner');
     if(btnUpdate) btnUpdate.addEventListener('click', applyUpdate);
-    if(btnDismiss) btnDismiss.addEventListener('click', () => banner.classList.add('hidden'));
+    if(btnDismiss) btnDismiss.addEventListener('click', () => {
+        if(banner) banner.style.display = 'none'; // Dismiss banner explicitly
+    });
 
     document.getElementById('theme-toggle').addEventListener('click', () => {
         const isDark = document.documentElement.getAttribute('data-theme') === 'dark';

@@ -1,5 +1,4 @@
-// 開発時にバージョン番号を書き換えることでキャッシュを更新できます
-const CACHE_NAME = 'taskflow-cache-v6';
+const CACHE_NAME = 'taskflow-cache-v8';
 const urlsToCache = [
   './',
   './index.html',
@@ -13,7 +12,6 @@ self.addEventListener('install', event => {
   event.waitUntil(
     caches.open(CACHE_NAME).then(cache => cache.addAll(urlsToCache))
   );
-  // Do NOT self.skipWaiting() here to allow the user to control the update process
 });
 
 self.addEventListener('activate', event => {
@@ -37,7 +35,6 @@ self.addEventListener('fetch', event => {
   );
 });
 
-// Listener for skipWaiting command from the main app
 self.addEventListener('message', event => {
     if (event.data && event.data.action === 'skipWaiting') {
         self.skipWaiting();
