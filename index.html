@@ -20,6 +20,66 @@
         [data-theme="dark"] .cal-day.selected-day {
             background-color: #0a84ff;
         }
+
+        /* インライン編集用スタイル */
+        .inline-edit-title {
+            font-size: 16px;
+            font-weight: 600;
+            border: 1px solid transparent;
+            background: transparent;
+            width: 100%;
+            color: var(--text-color);
+            padding: 2px 4px;
+            margin: 0 -4px 4px -4px;
+            border-radius: 4px;
+            font-family: inherit;
+            transition: all 0.2s;
+        }
+        .inline-edit-title:focus {
+            outline: none;
+            border-color: var(--primary-color);
+            background: var(--bg-color);
+        }
+        .completed .inline-edit-title {
+            text-decoration: line-through;
+            color: var(--text-secondary);
+        }
+        
+        .inline-edit-date {
+            font-size: 12px;
+            border: 1px solid transparent;
+            background: transparent;
+            color: var(--text-secondary);
+            font-family: inherit;
+            padding: 2px;
+            margin: 0;
+            border-radius: 4px;
+        }
+        .inline-edit-date:focus {
+            outline: none;
+            color: var(--primary-color);
+            border-color: var(--primary-color);
+            background: var(--bg-color);
+        }
+        .inline-date-wrapper {
+            display: flex; 
+            align-items: center; 
+            gap: 2px;
+            background-color: rgba(0,0,0,0.03);
+            padding: 2px 6px;
+            border-radius: 12px;
+        }
+        [data-theme="dark"] .inline-date-wrapper {
+            background-color: rgba(255,255,255,0.1);
+        }
+        
+        .task-meta {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            flex-wrap: wrap;
+            margin-top: 4px;
+        }
     </style>
 </head>
 <body>
@@ -145,7 +205,7 @@
         <div class="modal-overlay" id="modal-overlay"></div>
         <div class="modal-content">
             <div class="modal-header">
-                <h2 id="modal-title">新しいタスク</h2>
+                <h2 id="modal-title">詳細を編集</h2>
                 <button type="button" id="btn-cancel" class="btn-close">×</button>
             </div>
             

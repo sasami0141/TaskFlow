@@ -368,7 +368,6 @@ function setupUI() {
         modal.classList.add('hidden');
         loadTasks();
         
-        // カレンダー画面だった場合は再レンダリングして選択状態を維持
         if (document.getElementById('view-calendar').classList.contains('active')) {
             renderCalendar(selectedDateStr);
         }
@@ -400,7 +399,7 @@ function setupUI() {
 }
 
 function openModal(task = null, defaultDateStr = null) {
-    document.getElementById('modal-title').innerText = task ? 'タスクを編集' : '新しいタスク';
+    document.getElementById('modal-title').innerText = task ? '詳細を編集' : '新しいタスク';
     document.getElementById('task-id').value = task ? task.id : '';
     document.getElementById('task-id').dataset.completed = task ? task.completed : 'false';
     document.getElementById('task-title').value = task ? task.title : '';
@@ -490,29 +489,53 @@ function renderTasks() {
             
             let reminderDisplay = '';
             if (task.reminder && !task.notified) {
-                reminderDisplay = `<span>🔔 ${task.reminder.replace('T', ' ')}</span>`;
+                reminderDisplay = `<span class="inline-date-wrapper">🔔 ${task.reminder.replace('T', ' ')}</span>`;
             }
+            
+            const deadlineValue = task.deadline || '';
 
             li.innerHTML = `
                 <div class="task-header">
                     <input type="checkbox" class="task-chk" ${task.completed ? 'checked' : ''}>
                     <div class="task-content">
-                        <div class="task-title">${task.title}</div>
+                        <input type="text" class="inline-edit-title" value="${task.title}" placeholder="タスク名">
                         <div class="task-meta">
-                            ${task.deadline ? `<span>📅 ${task.deadline.replace('T', ' ')}</span>` : ''}
+                            <span class="inline-date-wrapper">
+                                📅 <input type="datetime-local" class="inline-edit-date" value="${deadlineValue}">
+                            </span>
                             ${reminderDisplay}
-                            ${task.category ? `<span>📁 ${task.category}</span>` : ''}
-                            <span>${priorityIcon}</span>
+                            ${task.category ? `<span class="inline-date-wrapper">📁 ${task.category}</span>` : ''}
+                            <span class="inline-date-wrapper">${priorityIcon}</span>
                         </div>
                         ${subtasksHtml}
                     </div>
                 </div>
                 <div class="task-actions">
-                    <button class="btn-text btn-edit">編集</button>
+                    <button class="btn-text btn-edit">詳細</button>
                     <button class="btn-text danger btn-del">削除</button>
                 </div>
             `;
             
+            // タスク名のインライン編集
+            const titleInput = li.querySelector('.inline-edit-title');
+            titleInput.addEventListener('change', async (e) => {
+                task.title = e.target.value;
+                await saveTask(task);
+            });
+            titleInput.addEventListener('click', e => e.stopPropagation()); // チェックボックス反応防止
+            
+            // 日付のインライン編集
+            const dateInput = li.querySelector('.inline-edit-date');
+            dateInput.addEventListener('change', async (e) => {
+                task.deadline = e.target.value;
+                await saveTask(task);
+                if (document.getElementById('sort-select').value === 'deadline') {
+                    loadTasks(); // 期限順に並べている場合は再ソート
+                }
+            });
+            dateInput.addEventListener('click', e => e.stopPropagation());
+
+            // サブタスクチェック
             li.querySelectorAll('.home-st-chk').forEach(chk => {
                 chk.addEventListener('change', async (e) => {
                     const idx = e.target.dataset.index;
@@ -525,6 +548,7 @@ function renderTasks() {
                 });
             });
 
+            // メイン完了チェック
             const mainChk = li.querySelector('.task-chk');
             mainChk.addEventListener('change', async (e) => {
                 if (li.dataset.processing) {
@@ -603,12 +627,9 @@ function renderCalendar(restoreSelectedDate = null) {
         
         div.onclick = () => {
             if (selectedDateStr === dateStr) {
-                // 同じ日をもう一度タップしたらモーダルを開く
                 openModal(null, dateStr);
                 return;
             }
-
-            // 選択状態の更新
             document.querySelectorAll('.cal-day').forEach(el => el.classList.remove('selected-day'));
             div.classList.add('selected-day');
             selectedDateStr = dateStr;
@@ -621,17 +642,12 @@ function renderCalendar(restoreSelectedDate = null) {
                     return `<div class="task-item" style="padding:10px; margin-bottom:8px;">${t.completed?'✓ ':'🟢 '}${t.title} <span style="font-size: 0.8em; color: gray;">${timePart}</span></div>`;
                 }).join('');
             
-            // 下部にタスク追加ボタンも親切表示
             taskHtml += `<button class="btn-outline full-width" style="margin-top:16px;" onclick="openModal(null, '${dateStr}')">＋ ${calDate.getMonth()+1}月${i}日にタスクを追加</button>`;
-            
             document.getElementById('calendar-tasks').innerHTML = `<h3>${calDate.getMonth()+1}月${i}日の予定</h3><br>` + taskHtml;
         };
         grid.appendChild(div);
         
-        // 復元された選択日があれば詳細を自動展開
-        if (dateStr === restoreSelectedDate) {
-            div.onclick();
-        }
+        if (dateStr === restoreSelectedDate) div.onclick();
     }
 }
 
