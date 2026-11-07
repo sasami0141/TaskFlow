@@ -23,22 +23,19 @@ function initDB() {
 }
 function getDB() { return dbInstance; }
 
-// --- Task Manager Module ---
 function generateId() { return Date.now().toString() + '-' + Math.random().toString(36).substr(2, 9); }
 
 function calculateDate(baseDateStr, type, amount) {
     const d = baseDateStr ? new Date(baseDateStr) : new Date();
-    if (type === 'days') {
-        d.setDate(d.getDate() + amount);
-    } else if (type === 'weeks') {
-        d.setDate(d.getDate() + (amount * 7));
-    } else if (type === 'months') {
+    if (type === 'days') d.setDate(d.getDate() + amount);
+    else if (type === 'weeks') d.setDate(d.getDate() + (amount * 7));
+    else if (type === 'months') {
         const currentDay = d.getDate();
         d.setMonth(d.getMonth() + amount);
         if (d.getDate() !== currentDay) d.setDate(0); 
     }
     const tzOffset = d.getTimezoneOffset() * 60000;
-    return (new Date(d - tzOffset)).toISOString().slice(0, 10);
+    return (new Date(d - tzOffset)).toISOString().slice(0, 16);
 }
 
 function saveTask(task) {
@@ -97,16 +94,15 @@ async function toggleTaskStatus(task) {
                 d.setDate(d.getDate() + 1);
             }
             const tzOffset = d.getTimezoneOffset() * 60000;
-            newDateStr = (new Date(d - tzOffset)).toISOString().slice(0, 10);
+            newDateStr = (new Date(d - tzOffset)).toISOString().slice(0, 16);
         }
         
-        const nextTask = { ...task, id: generateId(), completed: false, deadline: newDateStr, subtasks: task.subtasks.map(st => ({...st, completed: false})) };
+        const nextTask = { ...task, id: generateId(), completed: false, deadline: newDateStr, notified: false, subtasks: task.subtasks.map(st => ({...st, completed: false})) };
         await saveTask(nextTask);
     }
     return saveTask(task);
 }
 
-// --- Backup Module ---
 async function backupData() {
     const tasks = await getAllTasks();
     const blob = new Blob([JSON.stringify(tasks, null, 2)], { type: 'application/json' });
@@ -126,7 +122,6 @@ async function restoreData(file) {
     for (const t of tasks) await saveTask(t);
 }
 
-// --- Notification Module ---
 function updateNotificationButtonUI() {
     const notifyBtn = document.getElementById('btn-request-notify');
     if (!notifyBtn) return;
@@ -144,7 +139,6 @@ function updateNotificationButtonUI() {
     }
 }
 
-// This function must be called DIRECTLY from the click event handler for iOS
 function requestNotificationPermissionDirectly() {
     if (!('Notification' in window)) {
         alert('このブラウザはプッシュ通知に対応していません。iOSの場合はSafariから「ホーム画面に追加」を行ってアプリを開いてください。');
@@ -167,26 +161,30 @@ function requestNotificationPermissionDirectly() {
 
 async function checkAndSendTaskNotification(task) {
     if (Notification.permission !== 'granted') return;
-    if (!task.deadline || task.completed || !task.reminder || task.reminder === 'none') return;
+    if (!task.deadline || task.completed || !task.reminder || task.reminder === 'none' || task.notified) return;
 
-    const targetReminderDays = parseInt(task.reminder, 10);
-    const dueDate = new Date(task.deadline);
-    const now = new Date();
+    let reminderTime;
+    if (!task.reminder.includes('T')) {
+        const days = parseInt(task.reminder, 10);
+        if (!isNaN(days) && task.deadline) {
+            const d = new Date(task.deadline);
+            d.setDate(d.getDate() - days);
+            reminderTime = d.getTime();
+        } else return;
+    } else {
+        reminderTime = new Date(task.reminder).getTime();
+    }
+
+    const now = new Date().getTime();
     
-    dueDate.setHours(0, 0, 0, 0);
-    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-
-    const diffTime = dueDate.getTime() - today.getTime();
-    const diffDays = Math.round(diffTime / (1000 * 60 * 60 * 24));
-
-    if (diffDays === targetReminderDays) {
-        const daysText = targetReminderDays === 0 ? '今日' : `あと${targetReminderDays}日`;
+    if (now >= reminderTime) {
         const title = `【リマインダー】TaskFlow`;
+        const formattedDeadline = task.deadline.replace('T', ' ');
         const options = {
-            body: `「${task.title}」の期限は${daysText}です！`,
+            body: `「${task.title}」の期限が近づいています (${formattedDeadline})`,
             icon: 'taskflow_icon.png',
             badge: 'taskflow_icon.png',
-            tag: `task-reminder-${task.id}-${targetReminderDays}`,
+            tag: `task-reminder-${task.id}`,
             data: { url: location.href }
         };
 
@@ -196,10 +194,13 @@ async function checkAndSendTaskNotification(task) {
         } else {
             new Notification(title, options);
         }
+        
+        task.notified = true;
+        await saveTask(task);
+        loadTasks(); // Update UI
     }
 }
 
-// --- Application Logic ---
 let currentTasks = [];
 let calDate = new Date();
 
@@ -211,6 +212,11 @@ document.addEventListener('DOMContentLoaded', async () => {
         if ('serviceWorker' in navigator) navigator.serviceWorker.register('./sw.js').catch(e => console.log('SW Registration error', e));
         
         updateNotificationButtonUI();
+
+        setInterval(() => {
+            currentTasks.forEach(task => checkAndSendTaskNotification(task));
+        }, 60000);
+
     } catch(err) {
         alert("データベースの初期化に失敗しました。");
         console.error(err);
@@ -218,6 +224,20 @@ document.addEventListener('DOMContentLoaded', async () => {
 });
 
 function setupUI() {
+    const deadlineInput = document.getElementById('task-deadline');
+    if (deadlineInput) deadlineInput.type = 'datetime-local';
+    
+    const reminderInput = document.getElementById('task-reminder');
+    if (reminderInput && reminderInput.tagName.toLowerCase() === 'select') {
+        const newReminder = document.createElement('input');
+        newReminder.type = 'datetime-local';
+        newReminder.id = 'task-reminder';
+        newReminder.className = reminderInput.className;
+        reminderInput.parentNode.replaceChild(newReminder, reminderInput);
+    } else if (reminderInput) {
+        reminderInput.type = 'datetime-local';
+    }
+
     document.getElementById('theme-toggle').addEventListener('click', () => {
         const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
         document.documentElement.setAttribute('data-theme', isDark ? 'light' : 'dark');
@@ -248,9 +268,12 @@ function setupUI() {
         btn.addEventListener('click', (e) => {
             const days = e.target.dataset.days;
             const months = e.target.dataset.months;
-            const today = new Date().toISOString().slice(0, 10);
+            const today = new Date();
+            const tzOffset = today.getTimezoneOffset() * 60000;
+            const todayStr = (new Date(today - tzOffset)).toISOString().slice(0, 16);
+            
             const input = document.getElementById('task-deadline');
-            const baseDate = input.value || today;
+            const baseDate = input.value || todayStr;
             if(days) input.value = calculateDate(baseDate, 'days', parseInt(days));
             if(months) input.value = calculateDate(baseDate, 'months', parseInt(months));
         });
@@ -261,7 +284,7 @@ function setupUI() {
         if(isNaN(amount) || amount < 1) return alert('日数を正しく入力してください');
         const unit = document.getElementById('rel-unit').value;
         const input = document.getElementById('task-deadline');
-        const baseDate = input.value || new Date().toISOString().slice(0, 10);
+        const baseDate = input.value || new Date().toISOString().slice(0, 16);
         input.value = calculateDate(baseDate, unit, amount);
     });
 
@@ -293,6 +316,7 @@ function setupUI() {
             reminder: document.getElementById('task-reminder').value,
             memo: document.getElementById('task-memo').value,
             completed: document.getElementById('task-id').dataset.completed === 'true',
+            notified: false,
             subtasks
         };
         await saveTask(task);
@@ -304,9 +328,8 @@ function setupUI() {
     document.getElementById('filter-status').addEventListener('change', renderTasks);
     document.getElementById('sort-select').addEventListener('change', renderTasks);
 
-    // Notifications Request - DIRECT BINDING for iOS
     const notifyBtn = document.getElementById('btn-request-notify');
-    notifyBtn.addEventListener('click', requestNotificationPermissionDirectly);
+    if(notifyBtn) notifyBtn.addEventListener('click', requestNotificationPermissionDirectly);
 
     document.getElementById('btn-backup').addEventListener('click', backupData);
     document.getElementById('input-restore').addEventListener('change', async (e) => {
@@ -331,11 +354,19 @@ function openModal(task = null) {
     document.getElementById('task-id').value = task ? task.id : '';
     document.getElementById('task-id').dataset.completed = task ? task.completed : 'false';
     document.getElementById('task-title').value = task ? task.title : '';
-    document.getElementById('task-deadline').value = task ? task.deadline : '';
+    
+    let defaultDeadline = task ? task.deadline : '';
+    if (defaultDeadline && defaultDeadline.length === 10) defaultDeadline += 'T12:00'; 
+    document.getElementById('task-deadline').value = defaultDeadline;
+    
     document.getElementById('task-priority').value = task ? task.priority : '2';
     document.getElementById('task-category').value = task ? task.category : '';
     document.getElementById('task-recurring').value = task ? task.recurring : 'none';
-    document.getElementById('task-reminder').value = task ? (task.reminder || 'none') : '2';
+    
+    let defaultReminder = task ? (task.reminder || '') : '';
+    if (defaultReminder && !defaultReminder.includes('T') && defaultReminder !== 'none') defaultReminder = ''; 
+    document.getElementById('task-reminder').value = defaultReminder;
+    
     document.getElementById('task-memo').value = task ? task.memo : '';
     document.getElementById('rel-amount').value = '';
     
@@ -384,9 +415,6 @@ function renderTasks() {
     } else {
         emptyState.classList.add('hidden');
         filtered.forEach(task => {
-            // Check for notifications
-            checkAndSendTaskNotification(task);
-
             const li = document.createElement('li');
             li.className = `task-item ${task.completed ? 'completed' : ''}`;
             
@@ -403,7 +431,14 @@ function renderTasks() {
                 </div>
             ` : '';
             
-            const reminderText = task.reminder && task.reminder !== 'none' ? `<span>🔔 ${task.reminder === '0' ? '当日' : task.reminder + '日前'}</span>` : '';
+            let reminderDisplay = '';
+            if (task.reminder && task.reminder !== 'none') {
+                if (task.reminder.includes('T')) {
+                    reminderDisplay = `<span>🔔 ${task.reminder.replace('T', ' ')}</span>`;
+                } else {
+                    reminderDisplay = `<span>🔔 ${task.reminder === '0' ? '当日' : task.reminder + '日前'}</span>`;
+                }
+            }
 
             li.innerHTML = `
                 <div class="task-header">
@@ -411,8 +446,8 @@ function renderTasks() {
                     <div class="task-content">
                         <div class="task-title">${task.title}</div>
                         <div class="task-meta">
-                            ${task.deadline ? `<span>📅 ${task.deadline}</span>` : ''}
-                            ${reminderText}
+                            ${task.deadline ? `<span>📅 ${task.deadline.replace('T', ' ')}</span>` : ''}
+                            ${reminderDisplay}
                             ${task.category ? `<span>📁 ${task.category}</span>` : ''}
                             <span>${priorityIcon}</span>
                         </div>
@@ -505,15 +540,18 @@ function renderCalendar() {
 
     for(let i=1; i<=daysInMonth; i++) {
         const dateStr = `${calDate.getFullYear()}-${String(calDate.getMonth()+1).padStart(2,'0')}-${String(i).padStart(2,'0')}`;
-        const hasTask = currentTasks.some(t => t.deadline === dateStr && !t.completed);
+        const hasTask = currentTasks.some(t => t.deadline && t.deadline.startsWith(dateStr) && !t.completed);
         const div = document.createElement('div');
         div.className = `cal-day ${hasTask ? 'has-task' : ''}`;
         div.innerText = i;
         div.onclick = () => {
-            const dayTasks = currentTasks.filter(t => t.deadline === dateStr);
+            const dayTasks = currentTasks.filter(t => t.deadline && t.deadline.startsWith(dateStr));
             const taskHtml = dayTasks.length === 0 
                 ? '<p style="color:var(--text-secondary)">タスクはありません</p>' 
-                : dayTasks.map(t => `<div class="task-item" style="padding:10px; margin-bottom:8px;">${t.completed?'✓ ':'🟢 '}${t.title}</div>`).join('');
+                : dayTasks.map(t => {
+                    const timePart = t.deadline.includes('T') ? t.deadline.split('T')[1] : '';
+                    return `<div class="task-item" style="padding:10px; margin-bottom:8px;">${t.completed?'✓ ':'🟢 '}${t.title} <span style="font-size: 0.8em; color: gray;">${timePart}</span></div>`;
+                }).join('');
             document.getElementById('calendar-tasks').innerHTML = `<h3>${calDate.getMonth()+1}月${i}日の予定</h3><br>` + taskHtml;
         };
         grid.appendChild(div);
