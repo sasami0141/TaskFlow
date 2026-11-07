@@ -235,11 +235,58 @@ function applyUpdate() {
 
     if (newWorker) {
         newWorker.postMessage({ action: 'skipWaiting' });
-        setTimeout(() => { window.location.reload(); }, 1000);
+        // コントローラーの変更を待つが、フェールセーフとしてタイムアウトも設定
+        setTimeout(() => { window.location.reload(); }, 1500);
     } else {
         window.location.reload();
     }
 }
+
+async function checkForUpdateManual() {
+    const btn = document.getElementById('btn-manual-update');
+    const originalText = btn.innerText;
+    btn.innerText = '🔄 確認中...';
+    btn.disabled = true;
+
+    try {
+        if ('serviceWorker' in navigator) {
+            const reg = await navigator.serviceWorker.ready;
+            await reg.update(); // サーバーのsw.jsとバイト単位で比較を行う
+            
+            if (reg.installing || reg.waiting) {
+                alert('新しいバージョンが見つかりました！\n画面上部のバナーから「更新」を押してください。');
+                showUpdateBanner();
+            } else {
+                alert('現在、最新バージョンをご利用中です。');
+            }
+        } else {
+            alert('この環境では更新機能を利用できません。');
+        }
+    } catch (e) {
+        console.error('Update check error', e);
+        alert('更新の確認に失敗しました。ネットワーク状況を確認してください。');
+    } finally {
+        btn.innerText = originalText;
+        btn.disabled = false;
+    }
+}
+
+function fetchAppVersion() {
+    fetch('sw.js')
+        .then(res => res.text())
+        .then(text => {
+            const match = text.match(/CACHE_NAME\s*=\s*['"]([^'"]+)['"]/);
+            if (match && match[1]) {
+                document.getElementById('app-version-info').innerText = `現在のバージョン: ${match[1].replace('taskflow-cache-', '')}`;
+            } else {
+                document.getElementById('app-version-info').innerText = 'バージョン情報が取得できません';
+            }
+        })
+        .catch(() => {
+            document.getElementById('app-version-info').innerText = 'オフライン (バージョン不明)';
+        });
+}
+
 
 // --- Application Logic ---
 let currentTasks = [];
@@ -254,6 +301,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         setupServiceWorker();
         
         updateNotificationButtonUI();
+        fetchAppVersion();
 
         setInterval(() => {
             currentTasks.forEach(task => checkAndSendTaskNotification(task));
@@ -379,6 +427,8 @@ function setupUI() {
 
     const notifyBtn = document.getElementById('btn-request-notify');
     if(notifyBtn) notifyBtn.addEventListener('click', requestNotificationPermissionDirectly);
+
+    document.getElementById('btn-manual-update').addEventListener('click', checkForUpdateManual);
 
     document.getElementById('btn-backup').addEventListener('click', backupData);
     document.getElementById('input-restore').addEventListener('change', async (e) => {
@@ -516,26 +566,23 @@ function renderTasks() {
                 </div>
             `;
             
-            // タスク名のインライン編集
             const titleInput = li.querySelector('.inline-edit-title');
             titleInput.addEventListener('change', async (e) => {
                 task.title = e.target.value;
                 await saveTask(task);
             });
-            titleInput.addEventListener('click', e => e.stopPropagation()); // チェックボックス反応防止
+            titleInput.addEventListener('click', e => e.stopPropagation());
             
-            // 日付のインライン編集
             const dateInput = li.querySelector('.inline-edit-date');
             dateInput.addEventListener('change', async (e) => {
                 task.deadline = e.target.value;
                 await saveTask(task);
                 if (document.getElementById('sort-select').value === 'deadline') {
-                    loadTasks(); // 期限順に並べている場合は再ソート
+                    loadTasks();
                 }
             });
             dateInput.addEventListener('click', e => e.stopPropagation());
 
-            // サブタスクチェック
             li.querySelectorAll('.home-st-chk').forEach(chk => {
                 chk.addEventListener('change', async (e) => {
                     const idx = e.target.dataset.index;
@@ -548,7 +595,6 @@ function renderTasks() {
                 });
             });
 
-            // メイン完了チェック
             const mainChk = li.querySelector('.task-chk');
             mainChk.addEventListener('change', async (e) => {
                 if (li.dataset.processing) {
