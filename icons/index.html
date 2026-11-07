@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>TaskFlow</title>
+    <link rel="stylesheet" href="css/style.css">
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#f2f2f7">
+    <link rel="apple-touch-icon" href="taskflow_icon.png">
+</head>
+<body>
+    <header class="app-header">
+        <h1>TaskFlow</h1>
+        <button id="theme-toggle" class="icon-btn">🌓</button>
+    </header>
+
+    <main class="app-main">
+        <!-- Tasks View -->
+        <section id="view-tasks" class="view active">
+            <div class="controls card">
+                <input type="text" id="search-input" placeholder="🔍 タスクを検索...">
+                <div class="filter-group">
+                    <select id="filter-status">
+                        <option value="active">🟢 未完了</option>
+                        <option value="completed">✓ 完了済み</option>
+                        <option value="all">📁 すべて</option>
+                    </select>
+                    <select id="sort-select">
+                        <option value="deadline">📅 期限順</option>
+                        <option value="priority">⭐ 優先度順</option>
+                        <option value="created">🕒 作成順</option>
+                    </select>
+                </div>
+            </div>
+            
+            <div id="empty-state" class="empty-state hidden">
+                <div class="empty-icon">📝</div>
+                <p>タスクがありません。<br>右下の＋ボタンから追加しましょう！</p>
+            </div>
+
+            <ul id="task-list"></ul>
+        </section>
+
+        <!-- Calendar View -->
+        <section id="view-calendar" class="view">
+            <div class="card">
+                <div class="calendar-header">
+                    <button id="cal-prev" class="btn-icon">◀</button>
+                    <h2 id="cal-month">2026年 11月</h2>
+                    <button id="cal-next" class="btn-icon">▶</button>
+                </div>
+                <div id="calendar-grid"></div>
+            </div>
+            <div id="calendar-tasks" class="calendar-task-list"></div>
+        </section>
+
+        <!-- Stats View -->
+        <section id="view-stats" class="view">
+            <h2 class="section-title">あなたの進捗</h2>
+            <div class="stat-grid">
+                <div class="stat-card">
+                    <div class="stat-value" id="stat-active">0</div>
+                    <div class="stat-label">未完了</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value highlight" id="stat-completed">0</div>
+                    <div class="stat-label">完了済み</div>
+                </div>
+                <div class="stat-card full-width">
+                    <div class="stat-value text-primary" id="stat-rate">0%</div>
+                    <div class="stat-label">達成率</div>
+                    <div class="progress-bar-bg">
+                        <div class="progress-bar-fill" id="stat-progress"></div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Settings View -->
+        <section id="view-settings" class="view">
+            <h2 class="section-title">データ管理</h2>
+            <div class="card settings-card">
+                <p class="settings-desc">📝 データは安全にこの端末内にのみ保存されています。</p>
+                
+                <div style="margin-bottom: 20px;">
+                    <button id="btn-request-notify" class="btn-primary full-width" style="background-color: #34c759;">🔔 通知を許可する</button>
+                    <p style="font-size:12px; color:var(--text-secondary); margin-top:4px;">※iOSの場合は「ホーム画面に追加」してから許可してください。</p>
+                </div>
+                
+                <button id="btn-backup" class="btn-primary full-width">データのバックアップ (JSON)</button>
+                
+                <div class="divider"></div>
+                
+                <label for="input-restore" class="file-label btn-secondary full-width">データの復元 (JSON読込)</label>
+                <input type="file" id="input-restore" accept=".json" style="display:none;">
+
+                <div class="divider"></div>
+                
+                <button id="btn-clear-all" class="btn-outline full-width" style="border-color:var(--danger-color); color:var(--danger-color);">⚠️ 全データを消去する</button>
+            </div>
+        </section>
+    </main>
+
+    <button id="fab-add" class="fab">+</button>
+
+    <!-- Bottom Navigation -->
+    <nav class="bottom-nav">
+        <button class="nav-item active" data-target="view-tasks">
+            <div class="nav-icon">📋</div>
+            <div class="nav-label">タスク</div>
+        </button>
+        <button class="nav-item" data-target="view-calendar">
+            <div class="nav-icon">📅</div>
+            <div class="nav-label">カレンダー</div>
+        </button>
+        <button class="nav-item" data-target="view-stats">
+            <div class="nav-icon">📊</div>
+            <div class="nav-label">統計</div>
+        </button>
+        <button class="nav-item" data-target="view-settings">
+            <div class="nav-icon">⚙️</div>
+            <div class="nav-label">設定</div>
+        </button>
+    </nav>
+
+    <!-- Task Modal -->
+    <div id="task-modal" class="modal hidden">
+        <div class="modal-overlay" id="modal-overlay"></div>
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 id="modal-title">新しいタスク</h2>
+                <button type="button" id="btn-cancel" class="btn-close">×</button>
+            </div>
+            
+            <div class="modal-body">
+                <input type="hidden" id="task-id">
+                
+                <div class="form-group">
+                    <label>タスク名</label>
+                    <input type="text" id="task-title" placeholder="何をする予定ですか？" required>
+                </div>
+                
+                <div class="form-group">
+                    <label>期限 (日付・時間)</label>
+                    <input type="datetime-local" id="task-deadline">
+                    
+                    <div style="margin-top: 12px; background: var(--bg-color); padding: 12px; border-radius: var(--border-radius-md);">
+                        <label style="font-size: 12px;">相対日数で指定</label>
+                        <div class="form-row" style="margin-top: 4px;">
+                            <input type="number" id="rel-amount" placeholder="例: 3" min="1" style="width: 80px;">
+                            <select id="rel-unit" style="flex:1;">
+                                <option value="days">日後</option>
+                                <option value="weeks">週間後</option>
+                                <option value="months">ヶ月後</option>
+                            </select>
+                            <button type="button" id="btn-apply-rel" class="btn-secondary" style="padding: 14px 16px;">適用</button>
+                        </div>
+                    </div>
+
+                    <div class="quick-dates" style="margin-top: 12px;">
+                        <button type="button" class="btn-quick" data-days="1">明日</button>
+                        <button type="button" class="btn-quick" data-days="3">+3日</button>
+                        <button type="button" class="btn-quick" data-days="7">+1週</button>
+                        <button type="button" class="btn-quick" data-months="1">+1月</button>
+                    </div>
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group half">
+                        <label>優先度</label>
+                        <select id="task-priority">
+                            <option value="3">🔥 高</option>
+                            <option value="2" selected>⭐ 中</option>
+                            <option value="1">🌱 低</option>
+                        </select>
+                    </div>
+                    <div class="form-group half">
+                        <label>繰り返し</label>
+                        <select id="task-recurring">
+                            <option value="none">なし</option>
+                            <option value="daily">毎日</option>
+                            <option value="weekly">毎週</option>
+                            <option value="monthly">毎月</option>
+                            <optgroup label="曜日指定">
+                                <option value="mon">毎週 月曜</option>
+                                <option value="tue">毎週 火曜</option>
+                                <option value="wed">毎週 水曜</option>
+                                <option value="thu">毎週 木曜</option>
+                                <option value="fri">毎週 金曜</option>
+                                <option value="sat">毎週 土曜</option>
+                                <option value="sun">毎週 日曜</option>
+                            </optgroup>
+                        </select>
+                    </div>
+                </div>
+
+                <!-- リマインダー通知機能の復元 -->
+                <div class="form-group">
+                    <label>リマインダー通知</label>
+                    <div class="form-row" style="margin-top: 4px;">
+                        <input type="datetime-local" id="task-reminder" style="flex: 1;">
+                        <button type="button" class="btn-secondary" onclick="document.getElementById('task-reminder').value=''" style="padding: 14px 16px;">クリア</button>
+                    </div>
+                    <p style="font-size: 11px; color: var(--text-secondary); margin-top: 4px;">※未設定（空欄）の場合は通知されません。</p>
+                </div>
+
+                <div class="form-group">
+                    <label>カテゴリー</label>
+                    <input type="text" id="task-category" placeholder="例: 仕事, 買い物, 趣味">
+                </div>
+
+                <div class="form-group">
+                    <label>メモ</label>
+                    <textarea id="task-memo" rows="2" placeholder="詳細なメモを入力..."></textarea>
+                </div>
+
+                <div class="form-group">
+                    <label>サブタスク</label>
+                    <div id="subtasks-container"></div>
+                    <button type="button" id="btn-add-subtask" class="btn-outline">+ サブタスクを追加</button>
+                </div>
+            </div>
+
+            <div class="modal-actions">
+                <button type="button" id="btn-save" class="btn-primary full-width">保存する</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="js/app.js"></script>
+</body>
+</html>
