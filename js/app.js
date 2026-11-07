@@ -91,9 +91,8 @@ async function toggleTaskStatus(task) {
         else if(task.recurring === 'weekly') newDateStr = calculateDate(task.deadline, 'days', 7);
         else if(task.recurring === 'monthly') newDateStr = calculateDate(task.deadline, 'months', 1);
         else if(task.recurring in weekdayMap) {
-            // 曜日指定の次回計算
             let d = task.deadline ? new Date(task.deadline) : new Date();
-            d.setDate(d.getDate() + 1); // 翌日以降で検索
+            d.setDate(d.getDate() + 1); 
             while(d.getDay() !== weekdayMap[task.recurring]) {
                 d.setDate(d.getDate() + 1);
             }
@@ -127,6 +126,79 @@ async function restoreData(file) {
     for (const t of tasks) await saveTask(t);
 }
 
+// --- Notification Module ---
+function updateNotificationButtonUI() {
+    const notifyBtn = document.getElementById('btn-request-notify');
+    if (!notifyBtn) return;
+    
+    if (Notification.permission === 'granted') {
+        notifyBtn.textContent = '通知は許可されています';
+        notifyBtn.disabled = true;
+        notifyBtn.style.backgroundColor = 'var(--border-color)';
+        notifyBtn.style.color = 'var(--text-secondary)';
+    } else if (Notification.permission === 'denied') {
+        notifyBtn.textContent = '通知が拒否されています (設定から変更)';
+        notifyBtn.disabled = true;
+        notifyBtn.style.backgroundColor = 'var(--danger-color)';
+        notifyBtn.style.color = 'white';
+    }
+}
+
+// This function must be called DIRECTLY from the click event handler for iOS
+function requestNotificationPermissionDirectly() {
+    if (!('Notification' in window)) {
+        alert('このブラウザはプッシュ通知に対応していません。iOSの場合はSafariから「ホーム画面に追加」を行ってアプリを開いてください。');
+        return;
+    }
+    
+    Notification.requestPermission().then(permission => {
+        if (permission === 'granted') {
+            alert('通知が許可されました！');
+            updateNotificationButtonUI();
+        } else {
+            alert('通知が許可されませんでした。設定アプリから許可してください。');
+            updateNotificationButtonUI();
+        }
+    }).catch(err => {
+        console.error('Notification permission error:', err);
+        alert('通知の許可中にエラーが発生しました。iOSが最新か確認してください。');
+    });
+}
+
+async function checkAndSendTaskNotification(task) {
+    if (Notification.permission !== 'granted') return;
+    if (!task.deadline || task.completed || !task.reminder || task.reminder === 'none') return;
+
+    const targetReminderDays = parseInt(task.reminder, 10);
+    const dueDate = new Date(task.deadline);
+    const now = new Date();
+    
+    dueDate.setHours(0, 0, 0, 0);
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+
+    const diffTime = dueDate.getTime() - today.getTime();
+    const diffDays = Math.round(diffTime / (1000 * 60 * 60 * 24));
+
+    if (diffDays === targetReminderDays) {
+        const daysText = targetReminderDays === 0 ? '今日' : `あと${targetReminderDays}日`;
+        const title = `【リマインダー】TaskFlow`;
+        const options = {
+            body: `「${task.title}」の期限は${daysText}です！`,
+            icon: 'taskflow_icon.png',
+            badge: 'taskflow_icon.png',
+            tag: `task-reminder-${task.id}-${targetReminderDays}`,
+            data: { url: location.href }
+        };
+
+        if ('serviceWorker' in navigator) {
+            const registration = await navigator.serviceWorker.ready;
+            registration.showNotification(title, options);
+        } else {
+            new Notification(title, options);
+        }
+    }
+}
+
 // --- Application Logic ---
 let currentTasks = [];
 let calDate = new Date();
@@ -136,9 +208,11 @@ document.addEventListener('DOMContentLoaded', async () => {
         await initDB();
         setupUI();
         await loadTasks();
-        if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(e => console.log('SW Registration skipped in local file mode.'));
+        if ('serviceWorker' in navigator) navigator.serviceWorker.register('./sw.js').catch(e => console.log('SW Registration error', e));
+        
+        updateNotificationButtonUI();
     } catch(err) {
-        alert("データベースの初期化に失敗しました。ローカル環境の設定が原因の可能性があります。");
+        alert("データベースの初期化に失敗しました。");
         console.error(err);
     }
 });
@@ -170,7 +244,6 @@ function setupUI() {
     document.getElementById('btn-cancel').addEventListener('click', () => modal.classList.add('hidden'));
     document.getElementById('modal-overlay').addEventListener('click', () => modal.classList.add('hidden'));
     
-    // Quick Dates
     document.querySelectorAll('.btn-quick').forEach(btn => {
         btn.addEventListener('click', (e) => {
             const days = e.target.dataset.days;
@@ -183,7 +256,6 @@ function setupUI() {
         });
     });
 
-    // 相対日付の手入力適用
     document.getElementById('btn-apply-rel').addEventListener('click', () => {
         const amount = parseInt(document.getElementById('rel-amount').value);
         if(isNaN(amount) || amount < 1) return alert('日数を正しく入力してください');
@@ -218,6 +290,7 @@ function setupUI() {
             priority: document.getElementById('task-priority').value,
             category: document.getElementById('task-category').value,
             recurring: document.getElementById('task-recurring').value,
+            reminder: document.getElementById('task-reminder').value,
             memo: document.getElementById('task-memo').value,
             completed: document.getElementById('task-id').dataset.completed === 'true',
             subtasks
@@ -231,6 +304,10 @@ function setupUI() {
     document.getElementById('filter-status').addEventListener('change', renderTasks);
     document.getElementById('sort-select').addEventListener('change', renderTasks);
 
+    // Notifications Request - DIRECT BINDING for iOS
+    const notifyBtn = document.getElementById('btn-request-notify');
+    notifyBtn.addEventListener('click', requestNotificationPermissionDirectly);
+
     document.getElementById('btn-backup').addEventListener('click', backupData);
     document.getElementById('input-restore').addEventListener('change', async (e) => {
         if(e.target.files.length > 0) {
@@ -240,7 +317,6 @@ function setupUI() {
         }
     });
 
-    // 全データ消去
     document.getElementById('btn-clear-all').addEventListener('click', async () => {
         if(confirm('⚠️ 本当にすべてのデータを消去しますか？\nこの操作は取り消せません。')) {
             await clearAllData();
@@ -259,6 +335,7 @@ function openModal(task = null) {
     document.getElementById('task-priority').value = task ? task.priority : '2';
     document.getElementById('task-category').value = task ? task.category : '';
     document.getElementById('task-recurring').value = task ? task.recurring : 'none';
+    document.getElementById('task-reminder').value = task ? (task.reminder || 'none') : '2';
     document.getElementById('task-memo').value = task ? task.memo : '';
     document.getElementById('rel-amount').value = '';
     
@@ -307,12 +384,14 @@ function renderTasks() {
     } else {
         emptyState.classList.add('hidden');
         filtered.forEach(task => {
+            // Check for notifications
+            checkAndSendTaskNotification(task);
+
             const li = document.createElement('li');
             li.className = `task-item ${task.completed ? 'completed' : ''}`;
             
             const priorityIcon = task.priority == 3 ? '🔥高' : (task.priority == 2 ? '⭐中' : '🌱低');
             
-            // ホーム画面表示用のサブタスクHTML
             const subtasksHtml = task.subtasks && task.subtasks.length > 0 ? `
                 <div class="home-subtasks">
                     ${task.subtasks.map((st, idx) => `
@@ -324,6 +403,8 @@ function renderTasks() {
                 </div>
             ` : '';
             
+            const reminderText = task.reminder && task.reminder !== 'none' ? `<span>🔔 ${task.reminder === '0' ? '当日' : task.reminder + '日前'}</span>` : '';
+
             li.innerHTML = `
                 <div class="task-header">
                     <input type="checkbox" class="task-chk" ${task.completed ? 'checked' : ''}>
@@ -331,6 +412,7 @@ function renderTasks() {
                         <div class="task-title">${task.title}</div>
                         <div class="task-meta">
                             ${task.deadline ? `<span>📅 ${task.deadline}</span>` : ''}
+                            ${reminderText}
                             ${task.category ? `<span>📁 ${task.category}</span>` : ''}
                             <span>${priorityIcon}</span>
                         </div>
@@ -343,7 +425,6 @@ function renderTasks() {
                 </div>
             `;
             
-            // サブタスクのチェックボックス処理
             li.querySelectorAll('.home-st-chk').forEach(chk => {
                 chk.addEventListener('change', async (e) => {
                     const idx = e.target.dataset.index;
@@ -356,17 +437,14 @@ function renderTasks() {
                 });
             });
 
-            // メインタスクの遅延完了＆取り消し処理
             const mainChk = li.querySelector('.task-chk');
             mainChk.addEventListener('change', async (e) => {
-                // 連打による複数回処理をブロック
                 if (li.dataset.processing) {
                     e.preventDefault();
                     e.target.checked = !e.target.checked; 
                     return;
                 }
 
-                // 「未完了」を「完了」にする時の遅延処理
                 if (e.target.checked && !task.completed) {
                     li.dataset.processing = "true";
                     li.classList.add('completing');
@@ -379,9 +457,8 @@ function renderTasks() {
                     const timeoutId = setTimeout(async () => {
                         await toggleTaskStatus(task);
                         loadTasks();
-                    }, 1500); // 1.5秒待機
+                    }, 1500);
 
-                    // 取り消しボタンの処理
                     btnUndo.addEventListener('click', () => {
                         clearTimeout(timeoutId);
                         li.dataset.processing = "";
@@ -390,7 +467,6 @@ function renderTasks() {
                         btnUndo.remove();
                     });
                 } else {
-                    // すでに完了しているものを未完了に戻す場合は即時反映
                     await toggleTaskStatus(task);
                     loadTasks();
                 }
