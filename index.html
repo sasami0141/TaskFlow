@@ -21,6 +21,55 @@
             background-color: #0a84ff;
         }
 
+        /* ---------------------------------
+           直感的なカスタムチェックボックス (丸型iOSスタイル)
+           --------------------------------- */
+        input[type="checkbox"] {
+            appearance: none;
+            -webkit-appearance: none;
+            width: 24px;
+            height: 24px;
+            border: 2px solid #c7c7cc;
+            border-radius: 50%;
+            background-color: transparent;
+            cursor: pointer;
+            position: relative;
+            outline: none;
+            transition: all 0.25s cubic-bezier(0.4, 0.0, 0.2, 1);
+            flex-shrink: 0;
+            margin: 0;
+            display: inline-block;
+            vertical-align: middle;
+        }
+        [data-theme="dark"] input[type="checkbox"] {
+            border-color: #555;
+        }
+        input[type="checkbox"]:checked {
+            background-color: #34c759;
+            border-color: #34c759;
+            transform: scale(1.1);
+        }
+        [data-theme="dark"] input[type="checkbox"]:checked {
+            background-color: #30d158;
+            border-color: #30d158;
+        }
+        input[type="checkbox"]:checked::after {
+            content: '';
+            position: absolute;
+            top: 4px;
+            left: 8px;
+            width: 5px;
+            height: 10px;
+            border: solid white;
+            border-width: 0 2px 2px 0;
+            transform: rotate(45deg);
+        }
+        
+        .task-header {
+            align-items: flex-start;
+            gap: 12px;
+        }
+
         /* インライン編集用スタイル */
         .inline-edit-title {
             font-size: 16px;
@@ -137,11 +186,11 @@
         <section id="view-stats" class="view">
             <h2 class="section-title">あなたの進捗</h2>
             <div class="stat-grid">
-                <div class="stat-card">
+                <div class="stat-card" id="card-stat-active" style="cursor: pointer; transition: all 0.2s; border: 2px solid transparent;">
                     <div class="stat-value" id="stat-active">0</div>
                     <div class="stat-label">未完了</div>
                 </div>
-                <div class="stat-card">
+                <div class="stat-card" id="card-stat-completed" style="cursor: pointer; transition: all 0.2s; border: 2px solid transparent;">
                     <div class="stat-value highlight" id="stat-completed">0</div>
                     <div class="stat-label">完了済み</div>
                 </div>
@@ -152,6 +201,20 @@
                         <div class="progress-bar-fill" id="stat-progress"></div>
                     </div>
                 </div>
+            </div>
+
+            <!-- 統計詳細エリア -->
+            <div id="stat-details" class="card hidden" style="margin-top: 16px; border: 1px solid var(--border-color);">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+                    <h3 id="stat-details-title" style="margin: 0; font-size: 16px;">内訳</h3>
+                    <div class="filter-group" style="margin-bottom: 0;">
+                        <select id="stat-group-by" style="padding: 4px 8px; font-size: 12px; height: auto;">
+                            <option value="category">カテゴリー別</option>
+                            <option value="date">日付別</option>
+                        </select>
+                    </div>
+                </div>
+                <div id="stat-details-content"></div>
             </div>
         </section>
 

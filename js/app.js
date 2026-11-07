@@ -235,7 +235,6 @@ function applyUpdate() {
 
     if (newWorker) {
         newWorker.postMessage({ action: 'skipWaiting' });
-        // コントローラーの変更を待つが、フェールセーフとしてタイムアウトも設定
         setTimeout(() => { window.location.reload(); }, 1500);
     } else {
         window.location.reload();
@@ -251,7 +250,7 @@ async function checkForUpdateManual() {
     try {
         if ('serviceWorker' in navigator) {
             const reg = await navigator.serviceWorker.ready;
-            await reg.update(); // サーバーのsw.jsとバイト単位で比較を行う
+            await reg.update(); 
             
             if (reg.installing || reg.waiting) {
                 alert('新しいバージョンが見つかりました！\n画面上部のバナーから「更新」を押してください。');
@@ -292,6 +291,7 @@ function fetchAppVersion() {
 let currentTasks = [];
 let calDate = new Date();
 let selectedDateStr = null;
+let currentStatStatus = null; // 'active' or 'completed'
 
 document.addEventListener('DOMContentLoaded', async () => {
     try {
@@ -341,6 +341,13 @@ function setupUI() {
             if(targetId === 'view-calendar') renderCalendar();
             if(targetId === 'view-stats') updateStats();
         });
+    });
+
+    // 統計タブのインタラクション
+    document.getElementById('card-stat-active').addEventListener('click', () => toggleStatDetails('active'));
+    document.getElementById('card-stat-completed').addEventListener('click', () => toggleStatDetails('completed'));
+    document.getElementById('stat-group-by').addEventListener('change', () => {
+        if(currentStatStatus) renderStatDetails();
     });
 
     const modal = document.getElementById('task-modal');
@@ -598,8 +605,15 @@ function renderTasks() {
             const mainChk = li.querySelector('.task-chk');
             mainChk.addEventListener('change', async (e) => {
                 if (li.dataset.processing) {
-                    e.preventDefault();
-                    e.target.checked = !e.target.checked; 
+                    if (!e.target.checked) {
+                        clearTimeout(li.timeoutId);
+                        li.dataset.processing = "";
+                        li.classList.remove('completing');
+                        const btnUndo = li.querySelector('.btn-undo');
+                        if (btnUndo) btnUndo.remove();
+                    } else {
+                        e.preventDefault();
+                    }
                     return;
                 }
 
@@ -612,16 +626,16 @@ function renderTasks() {
                     btnUndo.innerText = '↺ 取り消し';
                     li.querySelector('.task-actions').prepend(btnUndo);
 
-                    const timeoutId = setTimeout(async () => {
+                    li.timeoutId = setTimeout(async () => {
                         await toggleTaskStatus(task);
                         loadTasks();
                     }, 1500);
 
                     btnUndo.addEventListener('click', () => {
-                        clearTimeout(timeoutId);
+                        clearTimeout(li.timeoutId);
                         li.dataset.processing = "";
                         li.classList.remove('completing');
-                        e.target.checked = false;
+                        e.target.checked = false; 
                         btnUndo.remove();
                     });
                 } else {
@@ -697,6 +711,100 @@ function renderCalendar(restoreSelectedDate = null) {
     }
 }
 
+// 統計画面の拡張機能
+function toggleStatDetails(status) {
+    const detailsCard = document.getElementById('stat-details');
+    const cardActive = document.getElementById('card-stat-active');
+    const cardCompleted = document.getElementById('card-stat-completed');
+    
+    if (currentStatStatus === status) {
+        currentStatStatus = null;
+        detailsCard.classList.add('hidden');
+        cardActive.style.borderColor = 'transparent';
+        cardCompleted.style.borderColor = 'transparent';
+        cardActive.style.backgroundColor = 'var(--card-bg)';
+        cardCompleted.style.backgroundColor = 'var(--card-bg)';
+        return;
+    }
+    
+    currentStatStatus = status;
+    detailsCard.classList.remove('hidden');
+    
+    if (status === 'active') {
+        cardActive.style.borderColor = '#007aff';
+        cardActive.style.backgroundColor = 'rgba(0, 122, 255, 0.05)';
+        cardCompleted.style.borderColor = 'transparent';
+        cardCompleted.style.backgroundColor = 'var(--card-bg)';
+    } else {
+        cardCompleted.style.borderColor = '#34c759';
+        cardCompleted.style.backgroundColor = 'rgba(52, 199, 89, 0.05)';
+        cardActive.style.borderColor = 'transparent';
+        cardActive.style.backgroundColor = 'var(--card-bg)';
+    }
+    
+    document.getElementById('stat-details-title').innerText = status === 'active' ? '未完了タスクの内訳' : '完了済みタスクの内訳';
+    
+    renderStatDetails();
+}
+
+function renderStatDetails() {
+    const container = document.getElementById('stat-details-content');
+    container.innerHTML = '';
+    
+    const groupBy = document.getElementById('stat-group-by').value;
+    
+    const filtered = currentTasks.filter(t => currentStatStatus === 'active' ? !t.completed : t.completed);
+    
+    if (filtered.length === 0) {
+        container.innerHTML = '<p style="color:var(--text-secondary); font-size: 14px; text-align: center; padding: 12px 0;">該当するタスクがありません。</p>';
+        return;
+    }
+    
+    const groups = {};
+    filtered.forEach(t => {
+        let key = '';
+        if (groupBy === 'category') {
+            key = t.category ? t.category : '未分類';
+        } else if (groupBy === 'date') {
+            key = t.deadline ? t.deadline.split('T')[0] : '日付未設定';
+        }
+        
+        if (!groups[key]) groups[key] = [];
+        groups[key].push(t);
+    });
+    
+    const sortedKeys = Object.keys(groups).sort((a, b) => {
+        if (a === '日付未設定' || a === '未分類') return 1;
+        if (b === '日付未設定' || b === '未分類') return -1;
+        return a.localeCompare(b);
+    });
+    
+    let html = '';
+    sortedKeys.forEach(key => {
+        html += `<div class="stat-group">
+            <h4 style="margin: 16px 0 8px 0; font-size: 13px; color: var(--text-secondary); border-bottom: 1px solid var(--border-color); padding-bottom: 4px; display: flex; justify-content: space-between;">
+                <span>${key === '日付未設定' || key === '未分類' ? key : (groupBy === 'date' ? '📅 ' + key : '📁 ' + key)}</span>
+                <span style="font-weight: normal; background: var(--bg-color); padding: 2px 8px; border-radius: 12px; font-size: 11px;">${groups[key].length}件</span>
+            </h4>
+            <div style="display: flex; flex-direction: column; gap: 8px;">`;
+            
+        groups[key].forEach(t => {
+            const extraInfo = groupBy === 'date' ? (t.category ? `📁 ${t.category}` : '') : (t.deadline ? `📅 ${t.deadline.replace('T', ' ')}` : '');
+            
+            html += `
+                <div style="font-size: 14px; display: flex; flex-direction: column; background: var(--bg-color); padding: 10px 12px; border-radius: 8px; border-left: 3px solid ${t.completed ? '#34c759' : '#007aff'};">
+                    <span style="font-weight: 600; ${t.completed ? 'text-decoration: line-through; color: var(--text-secondary);' : ''}">${t.title}</span>
+                    ${extraInfo ? `<span style="font-size: 11px; color: var(--text-secondary); margin-top: 4px;">${extraInfo}</span>` : ''}
+                </div>
+            `;
+        });
+        
+        html += `</div></div>`;
+    });
+    
+    container.innerHTML = html;
+}
+
 function updateStats() {
     const completed = currentTasks.filter(t => t.completed).length;
     const total = currentTasks.length;
@@ -707,4 +815,8 @@ function updateStats() {
     document.getElementById('stat-completed').innerText = completed;
     document.getElementById('stat-rate').innerText = `${rate}%`;
     document.getElementById('stat-progress').style.width = `${rate}%`;
+
+    if (currentStatStatus) {
+        renderStatDetails();
+    }
 }
