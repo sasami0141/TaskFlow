@@ -95,71 +95,90 @@
         .btn-remove-date { background: transparent; border: none; color: var(--danger-color); margin-left: 4px; cursor: pointer; font-weight: bold; }
 
         /* =========================================
-           モーダル（タスク追加）の表示・背景のクリーンな修正
+           モーダル（タスク追加）の表示・背景の確実な修正
+           （変数に頼らず背景色を絶対指定して透けないようにする）
            ========================================= */
         .modal {
-            position: fixed;
-            top: 0; left: 0; width: 100vw; height: 100vh;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            padding: 20px;
-            box-sizing: border-box;
-            z-index: 9999;
+            position: fixed !important;
+            top: 0 !important; left: 0 !important; width: 100vw !important; height: 100vh !important;
+            display: flex !important;
+            align-items: center !important;
+            justify-content: center !important;
+            padding: 20px !important;
+            box-sizing: border-box !important;
+            z-index: 999999 !important; /* 最前面に強制 */
             opacity: 1;
             visibility: visible;
             transition: opacity 0.2s ease, visibility 0.2s ease;
         }
         .modal.hidden {
-            opacity: 0;
-            visibility: hidden;
-            pointer-events: none;
+            opacity: 0 !important;
+            visibility: hidden !important;
+            pointer-events: none !important;
         }
         
-        /* 背景（黒い半透明）を明示的に指定 */
+        /* 後ろの黒い半透明を画面全体に固定 */
         .modal-overlay {
-            position: absolute;
-            top: 0; left: 0; width: 100%; height: 100%;
-            background-color: rgba(0, 0, 0, 0.6); /* ここが背景色 */
-            z-index: 1;
+            position: fixed !important;
+            top: 0 !important; left: 0 !important; width: 100vw !important; height: 100vh !important;
+            background-color: rgba(0, 0, 0, 0.6) !important;
+            z-index: 1 !important;
         }
         
-        /* モーダルの中身（白い枠） */
+        /* モーダルの中身（白い枠/ダークモード時は黒） */
         .modal-content {
-            display: flex;
-            flex-direction: column;
-            max-height: 85vh;
-            padding: 0;
-            overflow: hidden;
-            background: var(--card-bg);
-            width: 100%;
-            max-width: 500px;
-            border-radius: 12px;
-            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
-            z-index: 2;
-            position: relative;
+            display: flex !important;
+            flex-direction: column !important;
+            max-height: 85vh !important;
+            padding: 0 !important;
+            overflow: hidden !important;
+            /* 背景色を明示的に指定 (変数が効かない場合への対策) */
+            background-color: #ffffff !important;
+            width: 100% !important;
+            max-width: 500px !important;
+            border-radius: 12px !important;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.5) !important;
+            z-index: 2 !important;
+            position: relative !important;
         }
+        [data-theme="dark"] .modal-content {
+            background-color: #1c1c1e !important;
+        }
+        
         .modal-header {
-            padding: 16px 20px;
-            border-bottom: 1px solid var(--border-color);
-            background: var(--card-bg);
-            flex-shrink: 0;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
+            padding: 16px 20px !important;
+            border-bottom: 1px solid rgba(128,128,128,0.2) !important;
+            background-color: #ffffff !important;
+            flex-shrink: 0 !important;
+            display: flex !important;
+            justify-content: space-between !important;
+            align-items: center !important;
         }
-        .modal-header h2 { margin: 0; font-size: 18px; }
+        [data-theme="dark"] .modal-header {
+            background-color: #1c1c1e !important;
+        }
+        
+        .modal-header h2 { margin: 0 !important; font-size: 18px !important; }
+        
         .modal-body {
-            padding: 16px 20px;
-            overflow-y: auto;
-            flex: 1 1 auto;
-            -webkit-overflow-scrolling: touch;
+            padding: 16px 20px !important;
+            overflow-y: auto !important;
+            flex: 1 1 auto !important;
+            -webkit-overflow-scrolling: touch !important;
+            background-color: #ffffff !important;
         }
+        [data-theme="dark"] .modal-body {
+            background-color: #1c1c1e !important;
+        }
+        
         .modal-actions {
-            padding: 16px 20px;
-            border-top: 1px solid var(--border-color);
-            background: var(--card-bg);
-            flex-shrink: 0;
+            padding: 16px 20px !important;
+            border-top: 1px solid rgba(128,128,128,0.2) !important;
+            background-color: #ffffff !important;
+            flex-shrink: 0 !important;
+        }
+        [data-theme="dark"] .modal-actions {
+            background-color: #1c1c1e !important;
         }
 
         .multi-item { display: flex; flex-direction: column; gap: 8px; background: var(--bg-color); padding: 12px; border-radius: 8px; margin-bottom: 12px; position: relative; }
@@ -315,7 +334,7 @@
                 <p style="font-size:11px; color:var(--text-secondary); margin-top:-8px; margin-bottom:12px;">※日をまたぐ予定の場合は「開始」と「終了」を設定してください。</p>
                 
                 <div class="form-group">
-                    <div style="background: var(--bg-color); padding: 12px; border-radius: var(--border-radius-md);">
+                    <div style="background: rgba(128,128,128,0.1); padding: 12px; border-radius: var(--border-radius-md);">
                         <label style="font-size: 12px; font-weight:bold;">📅 追加の日程指定 (飛び石・例外日など)</label>
                         <p style="font-size: 11px; color: var(--text-secondary); margin-bottom: 8px;">連続しない複数の日付でタスクを行いたい場合に追加してください。</p>
                         <div class="form-row">

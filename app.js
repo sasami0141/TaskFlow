@@ -182,7 +182,7 @@ async function checkForUpdateManual() {
 }
 
 function fetchAppVersion() {
-    fetch('sw.js')
+    fetch('sw.js', {cache: "no-store"})
         .then(res => res.text())
         .then(text => {
             const match = text.match(/CACHE_NAME\s*=\s*['"]([^'"]+)['"]/);
