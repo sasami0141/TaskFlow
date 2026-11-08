@@ -9,80 +9,25 @@
     <meta name="theme-color" content="#f2f2f7">
     <link rel="apple-touch-icon" href="taskflow_icon.png">
     <style>
-        /* カレンダーの選択された日とタスクがある日のスタイル */
-        .cal-day.selected-day {
-            background-color: #007aff;
-            color: white;
-            border-radius: 50%;
-            font-weight: bold;
-            box-shadow: 0 2px 4px rgba(0,122,255,0.3);
-        }
-        [data-theme="dark"] .cal-day.selected-day {
-            background-color: #0a84ff;
-        }
-        .cal-day.has-task {
-            position: relative;
-            font-weight: bold;
-        }
-        .cal-day.has-task::after {
-            content: '';
-            position: absolute;
-            bottom: 4px;
-            left: 50%;
-            transform: translateX(-50%);
-            width: 6px;
-            height: 6px;
-            background-color: #ff3b30;
-            border-radius: 50%;
-        }
-        .cal-day.selected-day.has-task::after {
-            background-color: white;
-        }
+        .cal-day.selected-day { background-color: #007aff; color: white; border-radius: 50%; font-weight: bold; box-shadow: 0 2px 4px rgba(0,122,255,0.3); }
+        [data-theme="dark"] .cal-day.selected-day { background-color: #0a84ff; }
+        .cal-day.has-task { position: relative; font-weight: bold; }
+        .cal-day.has-task::after { content: ''; position: absolute; bottom: 4px; left: 50%; transform: translateX(-50%); width: 6px; height: 6px; background-color: #ff3b30; border-radius: 50%; }
+        .cal-day.selected-day.has-task::after { background-color: white; }
 
-        /* カスタムチェックボックス */
-        input[type="checkbox"] {
-            appearance: none;
-            -webkit-appearance: none;
-            width: 24px;
-            height: 24px;
-            border: 2px solid #c7c7cc;
-            border-radius: 50%;
-            background-color: transparent;
-            cursor: pointer;
-            position: relative;
-            outline: none;
-            transition: all 0.25s cubic-bezier(0.4, 0.0, 0.2, 1);
-            flex-shrink: 0;
-            margin: 0;
-            display: inline-block;
-            vertical-align: middle;
-        }
+        input[type="checkbox"] { appearance: none; -webkit-appearance: none; width: 24px; height: 24px; border: 2px solid #c7c7cc; border-radius: 50%; background-color: transparent; cursor: pointer; position: relative; outline: none; transition: all 0.25s cubic-bezier(0.4, 0.0, 0.2, 1); flex-shrink: 0; margin: 0; display: inline-block; vertical-align: middle; }
         [data-theme="dark"] input[type="checkbox"] { border-color: #555; }
-        input[type="checkbox"]:checked {
-            background-color: #34c759; border-color: #34c759; transform: scale(1.1);
-        }
-        [data-theme="dark"] input[type="checkbox"]:checked {
-            background-color: #30d158; border-color: #30d158;
-        }
-        input[type="checkbox"]:checked::after {
-            content: ''; position: absolute; top: 4px; left: 8px; width: 5px; height: 10px;
-            border: solid white; border-width: 0 2px 2px 0; transform: rotate(45deg);
-        }
+        input[type="checkbox"]:checked { background-color: #34c759; border-color: #34c759; transform: scale(1.1); }
+        [data-theme="dark"] input[type="checkbox"]:checked { background-color: #30d158; border-color: #30d158; }
+        input[type="checkbox"]:checked::after { content: ''; position: absolute; top: 4px; left: 8px; width: 5px; height: 10px; border: solid white; border-width: 0 2px 2px 0; transform: rotate(45deg); }
         
         .task-header { align-items: flex-start; gap: 12px; }
 
-        .inline-edit-title {
-            font-size: 16px; font-weight: 600; border: 1px solid transparent; background: transparent;
-            width: 100%; color: var(--text-color); padding: 2px 4px; margin: 0 -4px 4px -4px;
-            border-radius: 4px; font-family: inherit; transition: all 0.2s;
-        }
+        .inline-edit-title { font-size: 16px; font-weight: 600; border: 1px solid transparent; background: transparent; width: 100%; color: var(--text-color); padding: 2px 4px; margin: 0 -4px 4px -4px; border-radius: 4px; font-family: inherit; transition: all 0.2s; }
         .inline-edit-title:focus { outline: none; border-color: var(--primary-color); background: var(--bg-color); }
         .completed .inline-edit-title { text-decoration: line-through; color: var(--text-secondary); }
         
-        .inline-edit-date {
-            font-size: 12px; border: 1px solid transparent; background: transparent;
-            color: var(--text-secondary); font-family: inherit; padding: 2px; margin: 0; border-radius: 4px;
-        }
+        .inline-edit-date { font-size: 12px; border: 1px solid transparent; background: transparent; color: var(--text-secondary); font-family: inherit; padding: 2px; margin: 0; border-radius: 4px; }
         .inline-edit-date:focus { outline: none; color: var(--primary-color); border-color: var(--primary-color); background: var(--bg-color); }
         .inline-date-wrapper { display: flex; align-items: center; gap: 2px; background-color: rgba(0,0,0,0.03); padding: 2px 6px; border-radius: 12px; }
         [data-theme="dark"] .inline-date-wrapper { background-color: rgba(255,255,255,0.1); }
@@ -95,135 +40,29 @@
         .extra-date-item { display: inline-flex; align-items: center; background: var(--bg-color); padding: 4px 8px; border-radius: 12px; font-size: 12px; margin: 4px 4px 0 0; border: 1px solid var(--border-color); }
         .btn-remove-date { background: transparent; border: none; color: var(--danger-color); margin-left: 4px; cursor: pointer; font-weight: bold; }
 
-        /* スワイプ削除・タップ詳細用スタイル */
-        .task-item-wrapper {
-            position: relative;
-            border-radius: 8px;
-            margin-bottom: 12px;
-            background-color: #ff3b30;
-            overflow: hidden;
-            box-shadow: 0 1px 3px rgba(0,0,0,0.05);
-        }
-        .task-swipe-bg {
-            position: absolute;
-            top: 0; left: 0; right: 0; bottom: 0;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            padding: 0 20px;
-            color: white;
-            font-weight: bold;
-            z-index: 1;
-        }
-        .task-swipe-bg span {
-            opacity: 0;
-            transition: opacity 0.1s;
-        }
-        .task-item-wrapper .task-item {
-            margin-bottom: 0 !important;
-            background-color: var(--card-bg, #ffffff);
-            position: relative;
-            z-index: 2;
-            touch-action: pan-y;
-            border: 1px solid var(--border-color);
-            border-radius: 8px;
-            padding: 12px;
-            cursor: pointer; /* タップ可能であることを示す */
-        }
-        [data-theme="dark"] .task-item-wrapper .task-item {
-            background-color: #1c1c1e;
-        }
-        .task-item-wrapper .task-item:active {
-            background-color: rgba(0,0,0,0.02);
-        }
-        [data-theme="dark"] .task-item-wrapper .task-item:active {
-            background-color: rgba(255,255,255,0.05);
-        }
+        .task-item-wrapper { position: relative; border-radius: 8px; margin-bottom: 12px; background-color: #ff3b30; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,0.05); }
+        .task-swipe-bg { position: absolute; top: 0; left: 0; right: 0; bottom: 0; display: flex; justify-content: space-between; align-items: center; padding: 0 20px; color: white; font-weight: bold; z-index: 1; }
+        .task-swipe-bg span { opacity: 0; transition: opacity 0.1s; }
+        .task-item-wrapper .task-item { margin-bottom: 0 !important; background-color: var(--card-bg, #ffffff); position: relative; z-index: 2; touch-action: pan-y; border: 1px solid var(--border-color); border-radius: 8px; padding: 12px; cursor: pointer; }
+        [data-theme="dark"] .task-item-wrapper .task-item { background-color: #1c1c1e; }
+        .task-item-wrapper .task-item:active { background-color: rgba(0,0,0,0.02); }
+        [data-theme="dark"] .task-item-wrapper .task-item:active { background-color: rgba(255,255,255,0.05); }
 
-        .modal {
-            position: fixed !important;
-            top: 0 !important; left: 0 !important; width: 100vw !important; height: 100vh !important;
-            display: flex !important;
-            align-items: center !important;
-            justify-content: center !important;
-            padding: 20px !important;
-            box-sizing: border-box !important;
-            z-index: 999999 !important;
-            opacity: 1;
-            visibility: visible;
-            transition: opacity 0.2s ease, visibility 0.2s ease;
-        }
-        .modal.hidden {
-            opacity: 0 !important;
-            visibility: hidden !important;
-            pointer-events: none !important;
-        }
-        
-        .modal-overlay {
-            position: fixed !important;
-            top: 0 !important; left: 0 !important; width: 100vw !important; height: 100vh !important;
-            background-color: rgba(0, 0, 0, 0.6) !important;
-            z-index: 1 !important;
-        }
-        
-        .modal-content {
-            display: flex !important;
-            flex-direction: column !important;
-            max-height: 85vh !important;
-            padding: 0 !important;
-            overflow: hidden !important;
-            background-color: #ffffff !important;
-            width: 100% !important;
-            max-width: 500px !important;
-            border-radius: 12px !important;
-            box-shadow: 0 10px 30px rgba(0,0,0,0.5) !important;
-            z-index: 2 !important;
-            position: relative !important;
-        }
-        [data-theme="dark"] .modal-content {
-            background-color: #1c1c1e !important;
-        }
-        
-        .modal-header {
-            padding: 16px 20px !important;
-            border-bottom: 1px solid rgba(128,128,128,0.2) !important;
-            background-color: #ffffff !important;
-            flex-shrink: 0 !important;
-            display: flex !important;
-            justify-content: space-between !important;
-            align-items: center !important;
-        }
-        [data-theme="dark"] .modal-header {
-            background-color: #1c1c1e !important;
-        }
-        
+        .modal { position: fixed !important; top: 0 !important; left: 0 !important; width: 100vw !important; height: 100vh !important; display: flex !important; align-items: center !important; justify-content: center !important; padding: 20px !important; box-sizing: border-box !important; z-index: 999999 !important; opacity: 1; visibility: visible; transition: opacity 0.2s ease, visibility 0.2s ease; }
+        .modal.hidden { opacity: 0 !important; visibility: hidden !important; pointer-events: none !important; }
+        .modal-overlay { position: fixed !important; top: 0 !important; left: 0 !important; width: 100vw !important; height: 100vh !important; background-color: rgba(0, 0, 0, 0.6) !important; z-index: 1 !important; }
+        .modal-content { display: flex !important; flex-direction: column !important; max-height: 85vh !important; padding: 0 !important; overflow: hidden !important; background-color: #ffffff !important; width: 100% !important; max-width: 500px !important; border-radius: 12px !important; box-shadow: 0 10px 30px rgba(0,0,0,0.5) !important; z-index: 2 !important; position: relative !important; }
+        [data-theme="dark"] .modal-content { background-color: #1c1c1e !important; }
+        .modal-header { padding: 16px 20px !important; border-bottom: 1px solid rgba(128,128,128,0.2) !important; background-color: #ffffff !important; flex-shrink: 0 !important; display: flex !important; justify-content: space-between !important; align-items: center !important; }
+        [data-theme="dark"] .modal-header { background-color: #1c1c1e !important; }
         .modal-header h2 { margin: 0 !important; font-size: 18px !important; }
-        
-        .modal-body {
-            padding: 16px 20px !important;
-            overflow-y: auto !important;
-            flex: 1 1 auto !important;
-            -webkit-overflow-scrolling: touch !important;
-            background-color: #ffffff !important;
-        }
-        [data-theme="dark"] .modal-body {
-            background-color: #1c1c1e !important;
-        }
-        
-        .modal-actions {
-            padding: 16px 20px !important;
-            border-top: 1px solid rgba(128,128,128,0.2) !important;
-            background-color: #ffffff !important;
-            flex-shrink: 0 !important;
-        }
-        [data-theme="dark"] .modal-actions {
-            background-color: #1c1c1e !important;
-        }
-
+        .modal-body { padding: 16px 20px !important; overflow-y: auto !important; flex: 1 1 auto !important; -webkit-overflow-scrolling: touch !important; background-color: #ffffff !important; }
+        [data-theme="dark"] .modal-body { background-color: #1c1c1e !important; }
+        .modal-actions { padding: 16px 20px !important; border-top: 1px solid rgba(128,128,128,0.2) !important; background-color: #ffffff !important; flex-shrink: 0 !important; }
+        [data-theme="dark"] .modal-actions { background-color: #1c1c1e !important; }
         .multi-item { display: flex; flex-direction: column; gap: 8px; background: var(--bg-color); padding: 12px; border-radius: 8px; margin-bottom: 12px; position: relative; }
         .multi-item-row { display: flex; gap: 8px; align-items: center; }
         .btn-remove-item { position: absolute; top: 4px; right: 4px; background: transparent; border: none; color: var(--danger-color); font-size: 18px; cursor: pointer; line-height: 1; }
-        
     </style>
 </head>
 <body>
@@ -236,7 +75,7 @@
     </div>
 
     <header class="app-header">
-        <h1>TaskFlow <span style="font-size: 10px; color: var(--text-secondary);">v33</span></h1>
+        <h1>TaskFlow <span style="font-size: 10px; color: var(--text-secondary);">v34(Fix)</span></h1>
         <button id="theme-toggle" class="icon-btn">🌓</button>
     </header>
 
@@ -257,60 +96,13 @@
                     </select>
                 </div>
             </div>
-            
-            <div id="empty-state" class="empty-state hidden">
-                <div class="empty-icon">📝</div>
-                <p>タスクがありません。<br>右下の＋ボタンから追加しましょう！</p>
-            </div>
-
+            <div id="empty-state" class="empty-state hidden"><div class="empty-icon">📝</div><p>タスクがありません。<br>右下の＋ボタンから追加しましょう！</p></div>
             <ul id="task-list" style="padding: 0; list-style: none;"></ul>
         </section>
 
-        <section id="view-calendar" class="view">
-            <div class="card">
-                <div class="calendar-header">
-                    <button id="cal-prev" class="btn-icon">◀</button>
-                    <h2 id="cal-month">2026年 11月</h2>
-                    <button id="cal-next" class="btn-icon">▶</button>
-                </div>
-                <div id="calendar-grid"></div>
-            </div>
-            <div id="calendar-tasks" class="calendar-task-list"></div>
-        </section>
-
-        <section id="view-stats" class="view">
-            <h2 class="section-title">あなたの進捗</h2>
-            <div class="stat-grid">
-                <div class="stat-card" id="card-stat-active" style="cursor: pointer; transition: all 0.2s; border: 2px solid transparent;">
-                    <div class="stat-value" id="stat-active">0</div>
-                    <div class="stat-label">未完了</div>
-                </div>
-                <div class="stat-card" id="card-stat-completed" style="cursor: pointer; transition: all 0.2s; border: 2px solid transparent;">
-                    <div class="stat-value highlight" id="stat-completed">0</div>
-                    <div class="stat-label">完了済み</div>
-                </div>
-                <div class="stat-card full-width">
-                    <div class="stat-value text-primary" id="stat-rate">0%</div>
-                    <div class="stat-label">達成率</div>
-                    <div class="progress-bar-bg">
-                        <div class="progress-bar-fill" id="stat-progress"></div>
-                    </div>
-                </div>
-            </div>
-
-            <div id="stat-details" class="card hidden" style="margin-top: 16px; border: 1px solid var(--border-color);">
-                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
-                    <h3 id="stat-details-title" style="margin: 0; font-size: 16px;">内訳</h3>
-                    <div class="filter-group" style="margin-bottom: 0;">
-                        <select id="stat-group-by" style="padding: 4px 8px; font-size: 12px; height: auto;">
-                            <option value="category">カテゴリー別</option>
-                            <option value="date">日付別</option>
-                        </select>
-                    </div>
-                </div>
-                <div id="stat-details-content"></div>
-            </div>
-        </section>
+        <section id="view-calendar" class="view"><div class="card"><div class="calendar-header"><button id="cal-prev" class="btn-icon">◀</button><h2 id="cal-month">2026年 11月</h2><button id="cal-next" class="btn-icon">▶</button></div><div id="calendar-grid"></div></div><div id="calendar-tasks" class="calendar-task-list"></div></section>
+        
+        <section id="view-stats" class="view"><h2 class="section-title">あなたの進捗</h2><div class="stat-grid"><div class="stat-card" id="card-stat-active" style="cursor: pointer; transition: all 0.2s; border: 2px solid transparent;"><div class="stat-value" id="stat-active">0</div><div class="stat-label">未完了</div></div><div class="stat-card" id="card-stat-completed" style="cursor: pointer; transition: all 0.2s; border: 2px solid transparent;"><div class="stat-value highlight" id="stat-completed">0</div><div class="stat-label">完了済み</div></div><div class="stat-card full-width"><div class="stat-value text-primary" id="stat-rate">0%</div><div class="stat-label">達成率</div><div class="progress-bar-bg"><div class="progress-bar-fill" id="stat-progress"></div></div></div></div><div id="stat-details" class="card hidden" style="margin-top: 16px; border: 1px solid var(--border-color);"><div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;"><h3 id="stat-details-title" style="margin: 0; font-size: 16px;">内訳</h3><div class="filter-group" style="margin-bottom: 0;"><select id="stat-group-by" style="padding: 4px 8px; font-size: 12px; height: auto;"><option value="category">カテゴリー別</option><option value="date">日付別</option></select></div></div><div id="stat-details-content"></div></div></section>
 
         <section id="view-settings" class="view">
             <h2 class="section-title">設定</h2>
@@ -321,18 +113,13 @@
                     <button id="btn-manual-update" class="btn-outline full-width">🔄 手動で更新を確認</button>
                     <p style="font-size:11px; color:var(--text-secondary); margin-top:8px;">※更新が反映されない場合は、ブラウザのキャッシュをクリアするか、ホーム画面から一度削除して再度追加してください。</p>
                 </div>
-
                 <div class="divider"></div>
                 <h3 style="margin-top: 0; font-size: 14px; color: var(--text-secondary);">データ管理</h3>
                 <p class="settings-desc">📝 データは安全にこの端末内にのみ保存されています。</p>
-                <div style="margin-bottom: 20px;">
-                    <button id="btn-request-notify" class="btn-primary full-width" style="background-color: #34c759;">🔔 通知を許可する</button>
-                    <p style="font-size:12px; color:var(--text-secondary); margin-top:4px;">※iOSの場合は「ホーム画面に追加」してから許可してください。</p>
-                </div>
+                <div style="margin-bottom: 20px;"><button id="btn-request-notify" class="btn-primary full-width" style="background-color: #34c759;">🔔 通知を許可する</button></div>
                 <button id="btn-backup" class="btn-primary full-width">データのバックアップ (JSON)</button>
                 <div class="divider"></div>
-                <label for="input-restore" class="file-label btn-secondary full-width">データの復元 (JSON読込)</label>
-                <input type="file" id="input-restore" accept=".json" style="display:none;">
+                <label for="input-restore" class="file-label btn-secondary full-width">データの復元 (JSON読込)</label><input type="file" id="input-restore" accept=".json" style="display:none;">
                 <div class="divider"></div>
                 <button id="btn-clear-all" class="btn-outline full-width" style="border-color:var(--danger-color); color:var(--danger-color);">⚠️ 全データを消去する</button>
             </div>
@@ -341,128 +128,34 @@
 
     <button id="fab-add" class="fab">+</button>
 
-    <!-- モーダル（スクロール対応） -->
+    <!-- モーダル -->
     <div id="task-modal" class="modal hidden">
         <div class="modal-overlay" id="modal-overlay"></div>
         <div class="modal-content">
-            <!-- ヘッダー（固定） -->
-            <div class="modal-header">
-                <h2 id="modal-title">詳細を編集</h2>
-                <button type="button" id="btn-cancel" class="btn-close" style="font-size:24px; background:none; border:none; color:var(--text-color); cursor:pointer;">×</button>
-            </div>
-            
-            <!-- ボディ（スクロールエリア） -->
+            <div class="modal-header"><h2 id="modal-title">詳細を編集</h2><button type="button" id="btn-cancel" class="btn-close" style="font-size:24px; background:none; border:none; color:var(--text-color); cursor:pointer;">×</button></div>
             <div class="modal-body">
                 <input type="hidden" id="task-id">
-                
-                <div class="form-group">
-                    <label>タスク名</label>
-                    <input type="text" id="task-title" placeholder="何をする予定ですか？" required>
-                </div>
-                
-                <div class="form-row">
-                    <div class="form-group half">
-                        <label>開始日時 (期間始まり)</label>
-                        <input type="datetime-local" id="task-start">
-                    </div>
-                    <div class="form-group half">
-                        <label>終了日時 / 期限</label>
-                        <input type="datetime-local" id="task-deadline">
-                    </div>
-                </div>
-                <p style="font-size:11px; color:var(--text-secondary); margin-top:-8px; margin-bottom:12px;">※日をまたぐ予定の場合は「開始」と「終了」を設定してください。</p>
-                
-                <div class="form-group">
-                    <div style="background: rgba(128,128,128,0.1); padding: 12px; border-radius: var(--border-radius-md);">
-                        <label style="font-size: 12px; font-weight:bold;">📅 追加の日程指定 (飛び石・例外日など)</label>
-                        <p style="font-size: 11px; color: var(--text-secondary); margin-bottom: 8px;">連続しない複数の日付でタスクを行いたい場合に追加してください。</p>
-                        <div class="form-row">
-                            <input type="date" id="extra-date-input" style="flex:1;">
-                            <button type="button" id="btn-add-extra-date" class="btn-secondary" style="padding: 14px 16px;">追加</button>
-                        </div>
-                        <div id="extra-dates-container" style="margin-top: 8px;"></div>
-                    </div>
-                </div>
-
-                <div class="form-row">
-                    <div class="form-group half">
-                        <label>優先度</label>
-                        <select id="task-priority">
-                            <option value="3">🔥 高</option>
-                            <option value="2" selected>⭐ 中</option>
-                            <option value="1">🌱 低</option>
-                        </select>
-                    </div>
-                    <div class="form-group half">
-                        <label>繰り返し</label>
-                        <select id="task-recurring">
-                            <option value="none">なし</option>
-                            <option value="daily">毎日</option>
-                            <option value="weekly">毎週</option>
-                            <option value="monthly">毎月</option>
-                            <optgroup label="曜日指定">
-                                <option value="mon">毎週 月曜</option>
-                                <option value="tue">毎週 火曜</option>
-                                <option value="wed">毎週 水曜</option>
-                                <option value="thu">毎週 木曜</option>
-                                <option value="fri">毎週 金曜</option>
-                                <option value="sat">毎週 土曜</option>
-                                <option value="sun">毎週 日曜</option>
-                            </optgroup>
-                        </select>
-                    </div>
-                </div>
-
-                <div class="form-group">
-                    <label>添付URL</label>
-                    <div id="urls-container"></div>
-                    <button type="button" id="btn-add-url" class="btn-outline">+ 🔗 URLを追加</button>
-                </div>
-
-                <div class="form-group">
-                    <label>添付画像</label>
-                    <div id="images-container"></div>
-                    <button type="button" id="btn-add-image" class="btn-outline">+ 🖼️ 画像を追加</button>
-                </div>
-
-                <div class="form-group">
-                    <label>メモ</label>
-                    <textarea id="task-memo" rows="2" placeholder="詳細なメモを入力..."></textarea>
-                </div>
-
-                <div class="form-group">
-                    <label>サブタスク</label>
-                    <div id="subtasks-container"></div>
-                    <button type="button" id="btn-add-subtask" class="btn-outline">+ サブタスクを追加</button>
-                </div>
+                <div class="form-group"><label>タスク名</label><input type="text" id="task-title" placeholder="何をする予定ですか？" required></div>
+                <div class="form-row"><div class="form-group half"><label>開始日時</label><input type="datetime-local" id="task-start"></div><div class="form-group half"><label>終了日時</label><input type="datetime-local" id="task-deadline"></div></div>
+                <div class="form-group"><div style="background: rgba(128,128,128,0.1); padding: 12px; border-radius: var(--border-radius-md);"><label style="font-size: 12px; font-weight:bold;">📅 追加の日程指定</label><div class="form-row"><input type="date" id="extra-date-input" style="flex:1;"><button type="button" id="btn-add-extra-date" class="btn-secondary" style="padding: 14px 16px;">追加</button></div><div id="extra-dates-container" style="margin-top: 8px;"></div></div></div>
+                <div class="form-row"><div class="form-group half"><label>優先度</label><select id="task-priority"><option value="3">🔥 高</option><option value="2" selected>⭐ 中</option><option value="1">🌱 低</option></select></div><div class="form-group half"><label>繰り返し</label><select id="task-recurring"><option value="none">なし</option><option value="daily">毎日</option><option value="weekly">毎週</option><option value="monthly">毎月</option></select></div></div>
+                <div class="form-group"><label>添付URL</label><div id="urls-container"></div><button type="button" id="btn-add-url" class="btn-outline">+ 🔗 URLを追加</button></div>
+                <div class="form-group"><label>添付画像</label><div id="images-container"></div><button type="button" id="btn-add-image" class="btn-outline">+ 🖼️ 画像を追加</button></div>
+                <div class="form-group"><label>メモ</label><textarea id="task-memo" rows="2" placeholder="詳細なメモを入力..."></textarea></div>
+                <div class="form-group"><label>サブタスク</label><div id="subtasks-container"></div><button type="button" id="btn-add-subtask" class="btn-outline">+ サブタスクを追加</button></div>
             </div>
-
-            <!-- フッター（固定） -->
-            <div class="modal-actions">
-                <button type="button" id="btn-save" class="btn-primary full-width">保存する</button>
-            </div>
+            <div class="modal-actions"><button type="button" id="btn-save" class="btn-primary full-width">保存する</button></div>
         </div>
     </div>
 
     <nav class="bottom-nav">
-        <button class="nav-item active" data-target="view-tasks">
-            <div class="nav-icon">📋</div>
-            <div class="nav-label">タスク</div>
-        </button>
-        <button class="nav-item" data-target="view-calendar">
-            <div class="nav-icon">📅</div>
-            <div class="nav-label">カレンダー</div>
-        </button>
-        <button class="nav-item" data-target="view-stats">
-            <div class="nav-icon">📊</div>
-            <div class="nav-label">統計</div>
-        </button>
-        <button class="nav-item" data-target="view-settings">
-            <div class="nav-icon">⚙️</div>
-            <div class="nav-label">設定</div>
-        </button>
+        <button class="nav-item active" data-target="view-tasks"><div class="nav-icon">📋</div><div class="nav-label">タスク</div></button>
+        <button class="nav-item" data-target="view-calendar"><div class="nav-icon">📅</div><div class="nav-label">カレンダー</div></button>
+        <button class="nav-item" data-target="view-stats"><div class="nav-icon">📊</div><div class="nav-label">統計</div></button>
+        <button class="nav-item" data-target="view-settings"><div class="nav-icon">⚙️</div><div class="nav-label">設定</div></button>
     </nav>
 
-    <script src="js/app.js"></script>
+    <!-- キャッシュバスター -->
+    <script src="js/app.js?v=34"></script>
 </body>
 </html>
