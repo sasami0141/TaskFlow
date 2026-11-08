@@ -154,36 +154,35 @@ function applyUpdate() {
     }
 }
 
-// --- 強制キャッシュクリア ---
-async function forceClearCacheAndReload() {
+async function checkForUpdateManual() {
     const btn = document.getElementById('btn-manual-update');
     const originalText = btn.innerText;
-    btn.innerText = '🔄 キャッシュを強制クリア中...';
+    btn.innerText = '🔄 確認中...';
     btn.disabled = true;
 
     try {
         if ('serviceWorker' in navigator) {
-            const regs = await navigator.serviceWorker.getRegistrations();
-            for(let reg of regs) { await reg.unregister(); }
-            
-            if ('caches' in window) {
-                const cacheNames = await caches.keys();
-                for (let name of cacheNames) { await caches.delete(name); }
+            const reg = await navigator.serviceWorker.ready;
+            await reg.update(); 
+            if (reg.installing || reg.waiting) {
+                alert('新しいバージョンが見つかりました！\n画面上部のバナーから「更新」を押してください。');
+                showUpdateBanner();
+            } else {
+                alert('現在、最新バージョンをご利用中です。');
             }
-            alert('すべてのキャッシュをクリアしました。アプリを再読み込みします。');
-            window.location.reload(true);
         } else {
-            alert('Service Workerが未登録です。再読み込みします。');
-            window.location.reload(true);
+            alert('この環境では更新機能を利用できません。');
         }
     } catch (e) {
-        alert('キャッシュクリアに失敗しましたが、再読み込みします。');
-        window.location.reload(true);
+        alert('更新の確認に失敗しました。ネットワーク状況を確認してください。');
+    } finally {
+        btn.innerText = originalText;
+        btn.disabled = false;
     }
 }
 
 function fetchAppVersion() {
-    fetch('sw.js', {cache: "no-store"})
+    fetch('sw.js')
         .then(res => res.text())
         .then(text => {
             const match = text.match(/CACHE_NAME\s*=\s*['"]([^'"]+)['"]/);
@@ -251,13 +250,10 @@ function setupUI() {
         }
     });
     
-    // JSで絶対に閉じる処理
+    // クリーンにクラスを切り替えるだけの閉じる処理
     function closeModal() {
         const modal = document.getElementById('task-modal');
-        modal.style.setProperty('display', 'none', 'important');
-        modal.style.setProperty('opacity', '0', 'important');
-        modal.style.setProperty('pointer-events', 'none', 'important');
-        modal.style.setProperty('z-index', '-1', 'important');
+        modal.classList.add('hidden');
     }
     
     document.getElementById('btn-cancel').addEventListener('click', closeModal);
@@ -322,7 +318,7 @@ function setupUI() {
     document.getElementById('search-input').addEventListener('input', renderTasks);
     document.getElementById('filter-status').addEventListener('change', renderTasks);
     document.getElementById('sort-select').addEventListener('change', renderTasks);
-    document.getElementById('btn-manual-update').addEventListener('click', forceClearCacheAndReload);
+    document.getElementById('btn-manual-update').addEventListener('click', checkForUpdateManual);
 }
 
 function addUrlField(name = '', url = '') {
@@ -377,6 +373,7 @@ function renderExtraDates() {
     });
 }
 
+// クリーンに表示させる処理
 function openModal(task = null, defaultDateStr = null) {
     document.getElementById('modal-title').innerText = task ? '詳細を編集' : '新しいタスク';
     document.getElementById('task-id').value = task ? task.id : '';
@@ -422,12 +419,9 @@ function openModal(task = null, defaultDateStr = null) {
         });
     }
     
-    // JSで絶対に表示させる処理
+    // 表示処理
     const modal = document.getElementById('task-modal');
-    modal.style.setProperty('display', 'flex', 'important');
-    modal.style.setProperty('opacity', '1', 'important');
-    modal.style.setProperty('pointer-events', 'auto', 'important');
-    modal.style.setProperty('z-index', '9999', 'important');
+    modal.classList.remove('hidden');
 }
 
 async function loadTasks() { currentTasks = await getAllTasks(); renderTasks(); }
