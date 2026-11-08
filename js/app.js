@@ -69,21 +69,11 @@ function deleteTask(id) {
     });
 }
 
-function clearAllData() {
-    const db = getDB();
-    return new Promise((resolve, reject) => {
-        const tx = db.transaction('tasks', 'readwrite');
-        tx.objectStore('tasks').clear();
-        tx.oncomplete = () => resolve();
-    });
-}
-
 async function toggleTaskStatus(task) {
     task.completed = !task.completed;
     if(task.completed && task.recurring !== 'none') {
         let newDateStr;
         let newStartStr = null;
-        
         const weekdayMap = { 'sun':0, 'mon':1, 'tue':2, 'wed':3, 'thu':4, 'fri':5, 'sat':6 };
         
         if(task.recurring === 'daily') {
@@ -103,8 +93,6 @@ async function toggleTaskStatus(task) {
             }
             const tzOffset = d.getTimezoneOffset() * 60000;
             newDateStr = (new Date(d - tzOffset)).toISOString().slice(0, 16);
-            
-            // startDateもシフト
             if(task.startDate && task.deadline) {
                 const diffTime = Math.abs(new Date(newDateStr) - new Date(task.deadline));
                 const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
@@ -113,13 +101,9 @@ async function toggleTaskStatus(task) {
         }
         
         const nextTask = { 
-            ...task, 
-            id: generateId(), 
-            completed: false, 
-            deadline: newDateStr, 
-            startDate: newStartStr,
-            notified: false, 
-            subtasks: task.subtasks.map(st => ({...st, completed: false})) 
+            ...task, id: generateId(), completed: false, 
+            deadline: newDateStr, startDate: newStartStr,
+            notified: false, subtasks: task.subtasks.map(st => ({...st, completed: false})) 
         };
         await saveTask(nextTask);
     }
@@ -163,15 +147,10 @@ function showUpdateBanner() {
 function applyUpdate() {
     const banner = document.getElementById('update-banner');
     if (banner) banner.style.display = 'none';
-    
-    const btn = document.getElementById('btn-update');
-    if (btn) btn.disabled = true;
-
     if (newWorker) {
         newWorker.postMessage({ action: 'skipWaiting' });
-        setTimeout(() => { window.location.reload(); }, 1500);
     } else {
-        window.location.reload();
+        window.location.reload(true);
     }
 }
 
@@ -185,7 +164,6 @@ async function checkForUpdateManual() {
         if ('serviceWorker' in navigator) {
             const reg = await navigator.serviceWorker.ready;
             await reg.update(); 
-            
             if (reg.installing || reg.waiting) {
                 alert('新しいバージョンが見つかりました！\n画面上部のバナーから「更新」を押してください。');
                 showUpdateBanner();
@@ -204,27 +182,21 @@ async function checkForUpdateManual() {
 }
 
 function fetchAppVersion() {
-    fetch('sw.js')
+    fetch('sw.js', {cache: "no-store"})
         .then(res => res.text())
         .then(text => {
             const match = text.match(/CACHE_NAME\s*=\s*['"]([^'"]+)['"]/);
             if (match && match[1]) {
                 document.getElementById('app-version-info').innerText = `現在のバージョン: ${match[1].replace('taskflow-cache-', '')}`;
-            } else {
-                document.getElementById('app-version-info').innerText = 'バージョン情報が取得できません';
             }
-        })
-        .catch(() => {
-            document.getElementById('app-version-info').innerText = 'オフライン (バージョン不明)';
-        });
+        }).catch(() => {});
 }
-
 
 // --- Application Logic ---
 let currentTasks = [];
 let calDate = new Date();
 let selectedDateStr = null;
-let currentExtraDates = []; // 追加日程
+let currentExtraDates = []; 
 let currentStatStatus = null; 
 
 document.addEventListener('DOMContentLoaded', async () => {
@@ -235,18 +207,16 @@ document.addEventListener('DOMContentLoaded', async () => {
         setupServiceWorker();
         fetchAppVersion();
     } catch(err) {
-        alert("データベースの初期化に失敗しました。");
-        console.error(err);
+        alert("データベースエラー");
     }
 });
 
 function setupUI() {
     const btnUpdate = document.getElementById('btn-update');
     const btnDismiss = document.getElementById('btn-update-dismiss');
-    const banner = document.getElementById('update-banner');
     if(btnUpdate) btnUpdate.addEventListener('click', applyUpdate);
     if(btnDismiss) btnDismiss.addEventListener('click', () => {
-        if(banner) banner.style.display = 'none';
+        document.getElementById('update-banner').style.display = 'none';
     });
 
     document.getElementById('theme-toggle').addEventListener('click', () => {
@@ -258,13 +228,10 @@ function setupUI() {
         btn.addEventListener('click', (e) => {
             document.querySelectorAll('.nav-item').forEach(b => b.classList.remove('active'));
             document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
-            
             const targetBtn = e.target.closest('.nav-item');
             targetBtn.classList.add('active');
-            
             const targetId = targetBtn.dataset.target;
             document.getElementById(targetId).classList.add('active');
-            
             if(targetId === 'view-calendar') renderCalendar();
             if(targetId === 'view-stats') updateStats();
         });
@@ -272,11 +239,8 @@ function setupUI() {
 
     document.getElementById('card-stat-active').addEventListener('click', () => toggleStatDetails('active'));
     document.getElementById('card-stat-completed').addEventListener('click', () => toggleStatDetails('completed'));
-    document.getElementById('stat-group-by').addEventListener('change', () => {
-        if(currentStatStatus) renderStatDetails();
-    });
+    document.getElementById('stat-group-by').addEventListener('change', () => { if(currentStatStatus) renderStatDetails(); });
 
-    const modal = document.getElementById('task-modal');
     document.getElementById('fab-add').addEventListener('click', () => {
         const viewCal = document.getElementById('view-calendar');
         if (viewCal.classList.contains('active') && selectedDateStr) {
@@ -286,37 +250,26 @@ function setupUI() {
         }
     });
     
-    document.getElementById('btn-cancel').addEventListener('click', () => {
+    function closeModal() {
+        const modal = document.getElementById('task-modal');
         modal.classList.add('hidden');
-        modal.style.display = 'none';
-    });
-    document.getElementById('modal-overlay').addEventListener('click', () => {
-        modal.classList.add('hidden');
-        modal.style.display = 'none';
-    });
+    }
+    
+    document.getElementById('btn-cancel').addEventListener('click', closeModal);
+    document.getElementById('modal-overlay').addEventListener('click', closeModal);
 
-    // サブタスク追加
     document.getElementById('btn-add-subtask').addEventListener('click', () => {
         const container = document.getElementById('subtasks-container');
-        const id = generateId();
         const div = document.createElement('div');
         div.className = 'subtask-item';
-        div.innerHTML = `<input type="text" placeholder="サブタスクを入力..." data-id="${id}" class="st-input"><button type="button" class="btn-st-del">×</button>`;
+        div.innerHTML = `<input type="text" placeholder="サブタスクを入力..." data-id="${generateId()}" class="st-input"><button type="button" class="btn-st-del">×</button>`;
         div.querySelector('.btn-st-del').onclick = () => div.remove();
         container.appendChild(div);
     });
 
-    // URL追加
-    document.getElementById('btn-add-url').addEventListener('click', () => {
-        addUrlField();
-    });
+    document.getElementById('btn-add-url').addEventListener('click', () => addUrlField());
+    document.getElementById('btn-add-image').addEventListener('click', () => addImageField());
 
-    // 画像追加
-    document.getElementById('btn-add-image').addEventListener('click', () => {
-        addImageField();
-    });
-
-    // 追加日程
     document.getElementById('btn-add-extra-date').addEventListener('click', () => {
         const input = document.getElementById('extra-date-input');
         if (input.value && !currentExtraDates.includes(input.value)) {
@@ -334,104 +287,193 @@ function setupUI() {
             id: input.dataset.id, title: input.value, completed: input.dataset.completed === 'true'
         })).filter(st => st.title.trim() !== '');
 
-        // URLs
-        const urls = Array.from(document.querySelectorAll('.url-input-item')).map(div => {
-            return {
-                name: div.querySelector('.url-name').value.trim() || 'リンク',
-                url: div.querySelector('.url-val').value.trim()
-            };
-        }).filter(u => u.url !== '');
+        const urls = Array.from(document.querySelectorAll('.url-input-item')).map(div => ({
+            name: div.querySelector('.url-name').value.trim() || 'リンク',
+            url: div.querySelector('.url-val').value.trim()
+        })).filter(u => u.url !== '');
 
-        // Images
-        const images = Array.from(document.querySelectorAll('.img-input-item')).map(div => {
-            return {
-                name: div.querySelector('.img-name').value.trim() || '画像',
-                data: div.querySelector('.img-data').value
-            };
-        }).filter(i => i.data !== '');
+        const images = Array.from(document.querySelectorAll('.img-input-item')).map(div => ({
+            name: div.querySelector('.img-name').value.trim() || '画像',
+            data: div.querySelector('.img-data').value
+        })).filter(i => i.data !== '');
 
         const task = {
             id: document.getElementById('task-id').value || null,
-            title,
-            startDate: document.getElementById('task-start').value,
+            title, startDate: document.getElementById('task-start').value,
             deadline: document.getElementById('task-deadline').value,
-            extraDates: currentExtraDates,
-            priority: document.getElementById('task-priority').value,
-            recurring: document.getElementById('task-recurring').value,
-            urls: urls,
-            images: images,
+            extraDates: currentExtraDates, priority: document.getElementById('task-priority').value,
+            recurring: document.getElementById('task-recurring').value, urls, images,
             memo: document.getElementById('task-memo').value,
             completed: document.getElementById('task-id').dataset.completed === 'true',
-            subtasks
+            subtasks, url: '', image: ''
         };
-        
-        // 後方互換性
-        task.url = '';
-        task.image = '';
 
         await saveTask(task);
-        
-        modal.classList.add('hidden');
-        modal.style.display = 'none';
+        closeModal();
         loadTasks();
-        
-        if (document.getElementById('view-calendar').classList.contains('active')) {
-            renderCalendar(selectedDateStr);
-        }
+        if (document.getElementById('view-calendar').classList.contains('active')) renderCalendar(selectedDateStr);
     });
 
     document.getElementById('search-input').addEventListener('input', renderTasks);
     document.getElementById('filter-status').addEventListener('change', renderTasks);
     document.getElementById('sort-select').addEventListener('change', renderTasks);
     document.getElementById('btn-manual-update').addEventListener('click', checkForUpdateManual);
+
+    // =========================================================================
+    // 設定画面の機能（通知許可・バックアップ・復元・全消去）のイベント登録
+    // =========================================================================
+    
+    // 通知ボタン
+    const btnRequestNotify = document.getElementById('btn-request-notify');
+    if (btnRequestNotify) {
+        btnRequestNotify.addEventListener('click', async () => {
+            console.log("[設定] 通知ボタンクリック");
+            if (!("Notification" in window)) {
+                alert("このブラウザ・端末は通知機能をサポートしていません。iOSの場合は「ホーム画面に追加」から起動してください。");
+                return;
+            }
+            try {
+                let permission = Notification.permission;
+                if (permission === "granted") {
+                    alert("既に通知は許可されています。");
+                } else if (permission !== "denied") {
+                    permission = await Notification.requestPermission();
+                    if (permission === "granted") {
+                        alert("通知が許可されました！");
+                    } else {
+                        alert("通知の許可が拒否されました。");
+                    }
+                } else {
+                    alert("通知がブロックされています。端末の設定から許可してください。");
+                }
+            } catch (e) {
+                alert("通知設定の呼び出しに失敗しました。");
+                console.error(e);
+            }
+        });
+    } else {
+        console.warn("[設定] btn-request-notify が見つかりません");
+    }
+
+    // バックアップボタン
+    const btnBackup = document.getElementById('btn-backup');
+    if (btnBackup) {
+        btnBackup.addEventListener('click', async () => {
+            console.log("[設定] バックアップボタンクリック");
+            try {
+                const tasks = await getAllTasks();
+                if (tasks.length === 0) {
+                    alert("バックアップするタスクデータがありません。");
+                    return;
+                }
+                const blob = new Blob([JSON.stringify(tasks, null, 2)], { type: 'application/json' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `taskflow_backup_${new Date().toISOString().split('T')[0]}.json`;
+                document.body.appendChild(a);
+                a.click();
+                setTimeout(() => {
+                    document.body.removeChild(a);
+                    URL.revokeObjectURL(url);
+                }, 100);
+            } catch (e) {
+                alert('バックアップの作成に失敗しました。');
+                console.error(e);
+            }
+        });
+    } else {
+        console.warn("[設定] btn-backup が見つかりません");
+    }
+
+    // 復元ボタン（input）
+    const inputRestore = document.getElementById('input-restore');
+    if (inputRestore) {
+        inputRestore.addEventListener('change', async (e) => {
+            console.log("[設定] データ復元ファイル選択");
+            const file = e.target.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = async (evt) => {
+                try {
+                    const tasks = JSON.parse(evt.target.result);
+                    if (!Array.isArray(tasks)) throw new Error('Invalid format');
+                    if (confirm(`読み込んだ ${tasks.length} 件のデータで復元しますか？\n※現在のデータは完全に上書き消去されます。`)) {
+                        const db = getDB();
+                        const tx = db.transaction('tasks', 'readwrite');
+                        tx.objectStore('tasks').clear();
+                        await new Promise((resolve, reject) => {
+                            tx.oncomplete = resolve;
+                            tx.onerror = reject;
+                        });
+                        for (const task of tasks) {
+                            await saveTask(task);
+                        }
+                        alert('データの復元が完了しました。');
+                        loadTasks();
+                        if (document.getElementById('view-stats').classList.contains('active')) updateStats();
+                    }
+                } catch (err) {
+                    alert('ファイルの読み込みに失敗しました。正しいJSONファイルを選択してください。');
+                }
+                e.target.value = ''; // リセット
+            };
+            reader.readAsText(file);
+        });
+    } else {
+        console.warn("[設定] input-restore が見つかりません");
+    }
+
+    // 全データ消去ボタン
+    const btnClearAll = document.getElementById('btn-clear-all');
+    if (btnClearAll) {
+        btnClearAll.addEventListener('click', async () => {
+            console.log("[設定] 全データ消去クリック");
+            if (confirm('⚠️ 本当にすべてのデータを消去しますか？この操作は取り消せません。')) {
+                try {
+                    const db = getDB();
+                    const tx = db.transaction('tasks', 'readwrite');
+                    tx.objectStore('tasks').clear();
+                    tx.oncomplete = () => {
+                        alert('全データを消去しました。');
+                        loadTasks();
+                        if (document.getElementById('view-stats').classList.contains('active')) updateStats();
+                    };
+                } catch (e) {
+                    alert('データの消去に失敗しました。');
+                }
+            }
+        });
+    } else {
+        console.warn("[設定] btn-clear-all が見つかりません");
+    }
 }
 
-// URL追加UI
 function addUrlField(name = '', url = '') {
     const container = document.getElementById('urls-container');
     const div = document.createElement('div');
     div.className = 'multi-item url-input-item';
-    div.innerHTML = `
-        <button type="button" class="btn-remove-item" title="削除">×</button>
-        <div class="multi-item-row">
-            <span style="font-size: 12px; width: 40px; color: var(--text-secondary);">名前</span>
-            <input type="text" class="url-name" placeholder="リンクの名前 (任意)" value="${name}">
-        </div>
-        <div class="multi-item-row">
-            <span style="font-size: 12px; width: 40px; color: var(--text-secondary);">URL</span>
-            <input type="url" class="url-val" placeholder="https://..." value="${url}">
-        </div>
-    `;
+    div.innerHTML = `<button type="button" class="btn-remove-item" title="削除">×</button>
+        <div class="multi-item-row"><span style="font-size: 12px; width: 40px;">名前</span><input type="text" class="url-name" placeholder="リンクの名前" value="${name}"></div>
+        <div class="multi-item-row"><span style="font-size: 12px; width: 40px;">URL</span><input type="url" class="url-val" placeholder="https://..." value="${url}"></div>`;
     div.querySelector('.btn-remove-item').onclick = () => div.remove();
     container.appendChild(div);
 }
 
-// 画像追加UI
 function addImageField(name = '', data = '') {
     const container = document.getElementById('images-container');
     const div = document.createElement('div');
     div.className = 'multi-item img-input-item';
-    
-    div.innerHTML = `
-        <button type="button" class="btn-remove-item" title="削除">×</button>
-        <div class="multi-item-row">
-            <span style="font-size: 12px; width: 40px; color: var(--text-secondary);">名前</span>
-            <input type="text" class="img-name" placeholder="画像の名前 (任意)" value="${name}">
-        </div>
-        <div class="multi-item-row">
-            <input type="file" class="img-file" accept="image/*" style="font-size: 12px;">
-            <input type="hidden" class="img-data" value="${data}">
-        </div>
-        <img class="attachment-preview img-preview" style="display:${data ? 'block' : 'none'};" src="${data}">
-    `;
-    
+    div.innerHTML = `<button type="button" class="btn-remove-item" title="削除">×</button>
+        <div class="multi-item-row"><span style="font-size: 12px; width: 40px;">名前</span><input type="text" class="img-name" placeholder="画像の名前" value="${name}"></div>
+        <div class="multi-item-row"><input type="file" class="img-file" accept="image/*" style="font-size: 12px;"><input type="hidden" class="img-data" value="${data}"></div>
+        <img class="attachment-preview img-preview" style="display:${data ? 'block' : 'none'};" src="${data}">`;
     div.querySelector('.btn-remove-item').onclick = () => div.remove();
-    
-    div.querySelector('.img-file').addEventListener('change', function(e) {
+    div.querySelector('.img-file').addEventListener('change', e => {
         const file = e.target.files[0];
         if (file) {
             const reader = new FileReader();
-            reader.onload = function(evt) {
+            reader.onload = evt => {
                 const dataUrl = evt.target.result;
                 div.querySelector('.img-data').value = dataUrl;
                 div.querySelector('.img-preview').src = dataUrl;
@@ -440,7 +482,6 @@ function addImageField(name = '', data = '') {
             reader.readAsDataURL(file);
         }
     });
-
     container.appendChild(div);
 }
 
@@ -465,9 +506,8 @@ function openModal(task = null, defaultDateStr = null) {
     document.getElementById('task-id').value = task ? task.id : '';
     document.getElementById('task-id').dataset.completed = task ? task.completed : 'false';
     document.getElementById('task-title').value = task ? task.title : '';
-    
     document.getElementById('task-start').value = task && task.startDate ? task.startDate : '';
-
+    
     let defaultDeadline = task ? task.deadline : '';
     if (!defaultDeadline && defaultDateStr) {
         const now = new Date();
@@ -480,27 +520,16 @@ function openModal(task = null, defaultDateStr = null) {
     currentExtraDates = task && task.extraDates ? [...task.extraDates] : [];
     renderExtraDates();
     document.getElementById('extra-date-input').value = '';
-
     document.getElementById('task-priority').value = task ? task.priority : '2';
     document.getElementById('task-recurring').value = task ? task.recurring : 'none';
     
-    // URL
-    const urlsContainer = document.getElementById('urls-container');
-    urlsContainer.innerHTML = '';
-    if (task && task.urls && task.urls.length > 0) {
-        task.urls.forEach(u => addUrlField(u.name, u.url));
-    } else if (task && task.url) { // 古いデータの互換性
-        addUrlField('リンク', task.url);
-    }
+    document.getElementById('urls-container').innerHTML = '';
+    if (task && task.urls) task.urls.forEach(u => addUrlField(u.name, u.url));
+    else if (task && task.url) addUrlField('リンク', task.url);
 
-    // 画像
-    const imagesContainer = document.getElementById('images-container');
-    imagesContainer.innerHTML = '';
-    if (task && task.images && task.images.length > 0) {
-        task.images.forEach(i => addImageField(i.name, i.data));
-    } else if (task && task.image) { // 古いデータの互換性
-        addImageField('画像', task.image);
-    }
+    document.getElementById('images-container').innerHTML = '';
+    if (task && task.images) task.images.forEach(i => addImageField(i.name, i.data));
+    else if (task && task.image) addImageField('画像', task.image);
 
     document.getElementById('task-memo').value = task ? task.memo : '';
     
@@ -519,13 +548,9 @@ function openModal(task = null, defaultDateStr = null) {
     
     const modal = document.getElementById('task-modal');
     modal.classList.remove('hidden');
-    modal.style.display = 'flex'; // 追加: インラインスタイルでも表示
 }
 
-async function loadTasks() {
-    currentTasks = await getAllTasks();
-    renderTasks();
-}
+async function loadTasks() { currentTasks = await getAllTasks(); renderTasks(); }
 
 function renderTasks() {
     const list = document.getElementById('task-list');
@@ -547,163 +572,76 @@ function renderTasks() {
         return new Date(b.createdAt) - new Date(a.createdAt);
     });
 
-    if(filtered.length === 0) {
-        emptyState.classList.remove('hidden');
-    } else {
+    if(filtered.length === 0) { emptyState.classList.remove('hidden'); } 
+    else {
         emptyState.classList.add('hidden');
         filtered.forEach(task => {
             const li = document.createElement('li');
             li.className = `task-item ${task.completed ? 'completed' : ''}`;
-            
             const priorityIcon = task.priority == 3 ? '🔥高' : (task.priority == 2 ? '⭐中' : '🌱低');
             
-            let extraDatesHtml = '';
-            if (task.extraDates && task.extraDates.length > 0) {
-                extraDatesHtml = `<span class="inline-date-wrapper" style="font-size:11px;">+追加 ${task.extraDates.length}日</span>`;
-            }
+            let extraDatesHtml = task.extraDates && task.extraDates.length > 0 ? `<span class="inline-date-wrapper" style="font-size:11px;">+追加 ${task.extraDates.length}日</span>` : '';
+            let urlPreviewHtml = (task.urls && task.urls.length > 0) ? task.urls.map(u => `<a href="${u.url}" target="_blank" class="url-preview" onclick="event.stopPropagation()">🔗 ${u.name}</a>`).join(' ') : '';
+            let imagePreviewHtml = (task.images && task.images.length > 0) ? `<div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:8px;">` + task.images.map(i => `<div style="display:flex; flex-direction:column; align-items:flex-start;"><span style="font-size:10px; color:var(--text-secondary);">${i.name}</span><img src="${i.data}" class="attachment-preview" onclick="event.stopPropagation()"></div>`).join('') + `</div>` : '';
 
-            // URLs
-            let urlPreviewHtml = '';
-            let urlsToRender = task.urls || [];
-            if (task.url && urlsToRender.length === 0) urlsToRender = [{name: 'リンク', url: task.url}]; 
-            if (urlsToRender.length > 0) {
-                urlPreviewHtml = urlsToRender.map(u => `<a href="${u.url}" target="_blank" class="url-preview" onclick="event.stopPropagation()">🔗 ${u.name}</a>`).join(' ');
-            }
-
-            // Images
-            let imagePreviewHtml = '';
-            let imagesToRender = task.images || [];
-            if (task.image && imagesToRender.length === 0) imagesToRender = [{name: '画像', data: task.image}]; 
-            if (imagesToRender.length > 0) {
-                imagePreviewHtml = `<div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:8px;">` + 
-                    imagesToRender.map(i => `
-                    <div style="display:flex; flex-direction:column; align-items:flex-start;">
-                        <span style="font-size:10px; color:var(--text-secondary);">${i.name}</span>
-                        <img src="${i.data}" class="attachment-preview" alt="${i.name}" style="margin-top:0;" onclick="event.stopPropagation()">
-                    </div>
-                `).join('') + `</div>`;
-            }
-
-            const subtasksHtml = task.subtasks && task.subtasks.length > 0 ? `
-                <div class="home-subtasks">
-                    ${task.subtasks.map((st, idx) => `
-                        <label class="home-subtask-item">
-                            <input type="checkbox" class="home-st-chk" data-index="${idx}" ${st.completed ? 'checked' : ''}>
-                            <span class="${st.completed ? 'st-completed' : ''}">${st.title}</span>
-                        </label>
-                    `).join('')}
-                </div>
-            ` : '';
+            const subtasksHtml = task.subtasks && task.subtasks.length > 0 ? `<div class="home-subtasks">${task.subtasks.map((st, idx) => `<label class="home-subtask-item"><input type="checkbox" class="home-st-chk" data-index="${idx}" ${st.completed ? 'checked' : ''}><span class="${st.completed ? 'st-completed' : ''}">${st.title}</span></label>`).join('')}</div>` : '';
             
             const startValue = task.startDate || '';
             const deadlineValue = task.deadline || '';
-            let dateHtml = '';
-            if (startValue && deadlineValue) {
-                dateHtml = `📅 <span style="font-size:12px; color:var(--text-secondary); margin-right:4px;">${startValue.replace('T', ' ')} 〜</span> <input type="datetime-local" class="inline-edit-date" value="${deadlineValue}">`;
-            } else {
-                dateHtml = `📅 <input type="datetime-local" class="inline-edit-date" value="${deadlineValue}">`;
-            }
+            let dateHtml = (startValue && deadlineValue) ? `📅 <span style="font-size:12px; color:var(--text-secondary); margin-right:4px;">${startValue.replace('T', ' ')} 〜</span> <input type="datetime-local" class="inline-edit-date" value="${deadlineValue}">` : `📅 <input type="datetime-local" class="inline-edit-date" value="${deadlineValue}">`;
 
             li.innerHTML = `
-                <div class="task-header">
-                    <input type="checkbox" class="task-chk" ${task.completed ? 'checked' : ''}>
-                    <div class="task-content">
-                        <input type="text" class="inline-edit-title" value="${task.title}" placeholder="タスク名">
-                        <div class="task-meta">
-                            <span class="inline-date-wrapper">
-                                ${dateHtml}
-                            </span>
-                            ${extraDatesHtml}
-                            <span class="inline-date-wrapper">${priorityIcon}</span>
-                        </div>
-                        ${urlPreviewHtml}
-                        ${imagePreviewHtml}
-                        ${subtasksHtml}
-                    </div>
+                <div class="task-header"><input type="checkbox" class="task-chk" ${task.completed ? 'checked' : ''}>
+                    <div class="task-content"><input type="text" class="inline-edit-title" value="${task.title}"><div class="task-meta"><span class="inline-date-wrapper">${dateHtml}</span>${extraDatesHtml}<span class="inline-date-wrapper">${priorityIcon}</span></div>${urlPreviewHtml}${imagePreviewHtml}${subtasksHtml}</div>
                 </div>
-                <div class="task-actions">
-                    <button class="btn-text btn-edit">詳細</button>
-                    <button class="btn-text danger btn-del">削除</button>
-                </div>
-            `;
+                <div class="task-actions"><button class="btn-text btn-edit">詳細</button><button class="btn-text danger btn-del">削除</button></div>`;
             
-            const titleInput = li.querySelector('.inline-edit-title');
-            titleInput.addEventListener('change', async (e) => {
-                task.title = e.target.value;
-                await saveTask(task);
-            });
-            titleInput.addEventListener('click', e => e.stopPropagation());
+            li.querySelector('.inline-edit-title').addEventListener('change', async e => { task.title = e.target.value; await saveTask(task); });
+            li.querySelector('.inline-edit-title').addEventListener('click', e => e.stopPropagation());
             
-            const dateInput = li.querySelector('.inline-edit-date');
-            dateInput.addEventListener('change', async (e) => {
-                task.deadline = e.target.value;
-                await saveTask(task);
-                if (document.getElementById('sort-select').value === 'deadline') {
-                    loadTasks();
-                }
+            li.querySelector('.inline-edit-date').addEventListener('change', async e => {
+                task.deadline = e.target.value; await saveTask(task);
+                if (document.getElementById('sort-select').value === 'deadline') loadTasks();
             });
-            dateInput.addEventListener('click', e => e.stopPropagation());
+            li.querySelector('.inline-edit-date').addEventListener('click', e => e.stopPropagation());
 
             li.querySelectorAll('.home-st-chk').forEach(chk => {
                 chk.addEventListener('change', async (e) => {
                     const idx = e.target.dataset.index;
                     task.subtasks[idx].completed = e.target.checked;
                     await saveTask(task);
-                    
                     const span = e.target.nextElementSibling;
                     if(e.target.checked) span.classList.add('st-completed');
                     else span.classList.remove('st-completed');
                 });
             });
 
-            const mainChk = li.querySelector('.task-chk');
-            mainChk.addEventListener('change', async (e) => {
+            li.querySelector('.task-chk').addEventListener('change', async (e) => {
                 if (e.target.checked && !task.completed) {
                     li.classList.add('completing');
-                    setTimeout(async () => {
-                        await toggleTaskStatus(task);
-                        loadTasks();
-                    }, 500);
-                } else {
-                    await toggleTaskStatus(task);
-                    loadTasks();
-                }
+                    setTimeout(async () => { await toggleTaskStatus(task); loadTasks(); }, 500);
+                } else { await toggleTaskStatus(task); loadTasks(); }
             });
-
             li.querySelector('.btn-edit').addEventListener('click', () => openModal(task));
-            li.querySelector('.btn-del').addEventListener('click', async () => {
-                if(confirm('本当に削除しますか？')) { await deleteTask(task.id); loadTasks(); }
-            });
+            li.querySelector('.btn-del').addEventListener('click', async () => { if(confirm('本当に削除しますか？')) { await deleteTask(task.id); loadTasks(); }});
             list.appendChild(li);
         });
     }
 }
 
-// カレンダー表示用ロジック
 function isTaskOnDate(task, dateStr) {
     if (task.completed) return false;
-    
-    // 開始日から終了日(期限)までの期間チェック
     if (task.startDate && task.deadline) {
         const startDay = task.startDate.split('T')[0];
         const endDay = task.deadline.split('T')[0];
-        if (dateStr >= startDay && dateStr <= endDay) {
-            return true;
-        }
-    } else if (task.deadline && task.deadline.startsWith(dateStr)) {
-        return true;
-    }
-    
-    if (task.extraDates && task.extraDates.includes(dateStr)) {
-        return true;
-    }
-
+        if (dateStr >= startDay && dateStr <= endDay) return true;
+    } else if (task.deadline && task.deadline.startsWith(dateStr)) return true;
+    if (task.extraDates && task.extraDates.includes(dateStr)) return true;
     return false;
 }
 
 function renderCalendar(restoreSelectedDate = null) {
     if (!restoreSelectedDate) selectedDateStr = null;
-    
     document.getElementById('cal-month').innerText = `${calDate.getFullYear()}年 ${calDate.getMonth()+1}月`;
     document.getElementById('cal-prev').onclick = () => { calDate.setMonth(calDate.getMonth()-1); renderCalendar(); };
     document.getElementById('cal-next').onclick = () => { calDate.setMonth(calDate.getMonth()+1); renderCalendar(); };
@@ -712,14 +650,8 @@ function renderCalendar(restoreSelectedDate = null) {
     grid.innerHTML = '';
     const daysInMonth = new Date(calDate.getFullYear(), calDate.getMonth()+1, 0).getDate();
     
-    const weekdays = ['日','月','火','水','木','金','土'];
-    weekdays.forEach(wd => {
-        const div = document.createElement('div');
-        div.style.fontWeight = 'bold';
-        div.style.color = 'var(--text-secondary)';
-        div.style.padding = '8px 0';
-        div.innerText = wd;
-        grid.appendChild(div);
+    ['日','月','火','水','木','金','土'].forEach(wd => {
+        const div = document.createElement('div'); div.style.fontWeight = 'bold'; div.style.color = 'var(--text-secondary)'; div.style.padding = '8px 0'; div.innerText = wd; grid.appendChild(div);
     });
 
     const firstDay = new Date(calDate.getFullYear(), calDate.getMonth(), 1).getDay();
@@ -727,67 +659,45 @@ function renderCalendar(restoreSelectedDate = null) {
 
     for(let i=1; i<=daysInMonth; i++) {
         const dateStr = `${calDate.getFullYear()}-${String(calDate.getMonth()+1).padStart(2,'0')}-${String(i).padStart(2,'0')}`;
-        
         const hasTask = currentTasks.some(t => isTaskOnDate(t, dateStr));
-        
         const div = document.createElement('div');
         div.className = `cal-day ${hasTask ? 'has-task' : ''}`;
         if (dateStr === selectedDateStr) div.classList.add('selected-day');
         div.innerText = i;
         
         div.onclick = () => {
-            if (selectedDateStr === dateStr) {
-                openModal(null, dateStr);
-                return;
-            }
+            if (selectedDateStr === dateStr) { openModal(null, dateStr); return; }
             document.querySelectorAll('.cal-day').forEach(el => el.classList.remove('selected-day'));
             div.classList.add('selected-day');
             selectedDateStr = dateStr;
 
             const dayTasks = currentTasks.filter(t => isTaskOnDate(t, dateStr));
-            let taskHtml = dayTasks.length === 0 
-                ? '<p style="color:var(--text-secondary)">タスクはありません</p>' 
-                : dayTasks.map(t => {
-                    const timePart = (t.deadline && t.deadline.startsWith(dateStr) && t.deadline.includes('T')) ? t.deadline.split('T')[1] : '';
-                    const extraBadge = (t.extraDates && t.extraDates.includes(dateStr)) ? ' <span style="font-size:10px; background:#eee; padding:2px 4px; border-radius:4px;">追加日</span>' : '';
-                    const startDay = t.startDate ? t.startDate.split('T')[0] : null;
-                    const endDay = t.deadline ? t.deadline.split('T')[0] : null;
-                    const rangeBadge = (startDay && endDay && dateStr >= startDay && dateStr <= endDay) ? ' <span style="font-size:10px; background:#e0f7fa; color:#006064; padding:2px 4px; border-radius:4px;">期間中</span>' : '';
-                    
-                    // サムネイル表示
-                    let imgHtml = '';
-                    let imagesToRender = t.images || [];
-                    if (t.image && imagesToRender.length === 0) imagesToRender = [{name: '画像', data: t.image}]; 
-                    if (imagesToRender.length > 0) {
-                        imgHtml = `<div style="display:flex; gap:6px; flex-wrap:wrap; margin-top:8px;">` + 
-                            imagesToRender.map(img => `
-                            <img src="${img.data}" alt="${img.name}" title="${img.name}" style="height: 50px; width: 50px; object-fit: cover; border-radius: 6px; cursor: pointer; border: 1px solid var(--border-color);" onclick="event.stopPropagation(); window.open('${img.data}', '_blank');">
-                        `).join('') + `</div>`;
-                    }
+            let taskHtml = dayTasks.length === 0 ? '<p style="color:var(--text-secondary)">タスクはありません</p>' : dayTasks.map(t => {
+                const timePart = (t.deadline && t.deadline.startsWith(dateStr) && t.deadline.includes('T')) ? t.deadline.split('T')[1] : '';
+                const extraBadge = (t.extraDates && t.extraDates.includes(dateStr)) ? ' <span style="font-size:10px; background:#eee; padding:2px 4px; border-radius:4px;">追加日</span>' : '';
+                const startDay = t.startDate ? t.startDate.split('T')[0] : null;
+                const endDay = t.deadline ? t.deadline.split('T')[0] : null;
+                const rangeBadge = (startDay && endDay && dateStr >= startDay && dateStr <= endDay) ? ' <span style="font-size:10px; background:#e0f7fa; color:#006064; padding:2px 4px; border-radius:4px;">期間中</span>' : '';
+                
+                let imgHtml = (t.images && t.images.length > 0) ? `<div style="display:flex; gap:6px; flex-wrap:wrap; margin-top:8px;">` + t.images.map(img => `<img src="${img.data}" style="height: 50px; width: 50px; object-fit: cover; border-radius: 6px; cursor: pointer; border: 1px solid var(--border-color);" onclick="event.stopPropagation(); window.open('${img.data}', '_blank');">`).join('') + `</div>` : '';
 
-                    // ★カレンダータスクをタップで詳細を開く
-                    return `<div class="task-item cal-task-clickable" data-task-id="${t.id}" style="padding:12px; margin-bottom:8px; display:flex; flex-direction:column; align-items:flex-start; cursor:pointer; border: 1px solid var(--border-color); border-radius: 8px;">
-                        <div style="font-weight:600; width:100%;">${t.completed?'✓ ':'🟢 '}${t.title} <span style="font-size: 0.8em; color: var(--text-secondary); font-weight:normal;">${timePart}</span>${extraBadge}${rangeBadge}</div>
-                        ${imgHtml}
-                    </div>`;
-                }).join('');
+                return `<div class="task-item cal-task-clickable" data-task-id="${t.id}" style="padding:12px; margin-bottom:8px; display:flex; flex-direction:column; align-items:flex-start; cursor:pointer; border: 1px solid var(--border-color); border-radius: 8px;">
+                    <div style="font-weight:600; width:100%;">${t.completed?'✓ ':'🟢 '}${t.title} <span style="font-size: 0.8em; color: var(--text-secondary); font-weight:normal;">${timePart}</span>${extraBadge}${rangeBadge}</div>
+                    ${imgHtml}
+                </div>`;
+            }).join('');
             
             taskHtml += `<button class="btn-outline full-width" style="margin-top:16px;" onclick="openModal(null, '${dateStr}')">＋ ${calDate.getMonth()+1}月${i}日にタスクを追加</button>`;
-            
             const container = document.getElementById('calendar-tasks');
             container.innerHTML = `<h3>${calDate.getMonth()+1}月${i}日の予定</h3><br>` + taskHtml;
-            
-            // タスククリックでモーダルを開くイベントを付与
             container.querySelectorAll('.cal-task-clickable').forEach(el => {
-                el.addEventListener('click', (e) => {
-                    const taskId = el.getAttribute('data-task-id');
-                    const task = currentTasks.find(t => t.id === taskId);
+                el.addEventListener('click', () => {
+                    const task = currentTasks.find(t => t.id === el.getAttribute('data-task-id'));
                     if(task) openModal(task);
                 });
             });
         };
         grid.appendChild(div);
-        
         if (dateStr === restoreSelectedDate) div.onclick();
     }
 }
@@ -798,90 +708,49 @@ function toggleStatDetails(status) {
     const cardCompleted = document.getElementById('card-stat-completed');
     
     if (currentStatStatus === status) {
-        currentStatStatus = null;
-        detailsCard.classList.add('hidden');
-        cardActive.style.borderColor = 'transparent';
-        cardCompleted.style.borderColor = 'transparent';
-        cardActive.style.backgroundColor = 'var(--card-bg)';
-        cardCompleted.style.backgroundColor = 'var(--card-bg)';
+        currentStatStatus = null; detailsCard.classList.add('hidden');
+        cardActive.style.borderColor = 'transparent'; cardCompleted.style.borderColor = 'transparent';
+        cardActive.style.backgroundColor = 'var(--card-bg)'; cardCompleted.style.backgroundColor = 'var(--card-bg)';
         return;
     }
     
-    currentStatStatus = status;
-    detailsCard.classList.remove('hidden');
-    
+    currentStatStatus = status; detailsCard.classList.remove('hidden');
     if (status === 'active') {
-        cardActive.style.borderColor = '#007aff';
-        cardActive.style.backgroundColor = 'rgba(0, 122, 255, 0.05)';
-        cardCompleted.style.borderColor = 'transparent';
-        cardCompleted.style.backgroundColor = 'var(--card-bg)';
+        cardActive.style.borderColor = '#007aff'; cardActive.style.backgroundColor = 'rgba(0, 122, 255, 0.05)';
+        cardCompleted.style.borderColor = 'transparent'; cardCompleted.style.backgroundColor = 'var(--card-bg)';
     } else {
-        cardCompleted.style.borderColor = '#34c759';
-        cardCompleted.style.backgroundColor = 'rgba(52, 199, 89, 0.05)';
-        cardActive.style.borderColor = 'transparent';
-        cardActive.style.backgroundColor = 'var(--card-bg)';
+        cardCompleted.style.borderColor = '#34c759'; cardCompleted.style.backgroundColor = 'rgba(52, 199, 89, 0.05)';
+        cardActive.style.borderColor = 'transparent'; cardActive.style.backgroundColor = 'var(--card-bg)';
     }
-    
     document.getElementById('stat-details-title').innerText = status === 'active' ? '未完了タスクの内訳' : '完了済みタスクの内訳';
-    
     renderStatDetails();
 }
 
 function renderStatDetails() {
-    const container = document.getElementById('stat-details-content');
-    container.innerHTML = '';
-    
+    const container = document.getElementById('stat-details-content'); container.innerHTML = '';
     const groupBy = document.getElementById('stat-group-by').value;
-    
     const filtered = currentTasks.filter(t => currentStatStatus === 'active' ? !t.completed : t.completed);
     
-    if (filtered.length === 0) {
-        container.innerHTML = '<p style="color:var(--text-secondary); font-size: 14px; text-align: center; padding: 12px 0;">該当するタスクがありません。</p>';
-        return;
-    }
+    if (filtered.length === 0) { container.innerHTML = '<p style="text-align: center; padding: 12px 0;">該当するタスクがありません。</p>'; return; }
     
     const groups = {};
     filtered.forEach(t => {
-        let key = '';
-        if (groupBy === 'category') {
-            key = t.category ? t.category : '未分類';
-        } else if (groupBy === 'date') {
-            key = t.deadline ? t.deadline.split('T')[0] : '日付未設定';
-        }
-        
+        let key = groupBy === 'category' ? (t.category ? t.category : '未分類') : (t.deadline ? t.deadline.split('T')[0] : '日付未設定');
         if (!groups[key]) groups[key] = [];
         groups[key].push(t);
     });
     
-    const sortedKeys = Object.keys(groups).sort((a, b) => {
-        if (a === '日付未設定' || a === '未分類') return 1;
-        if (b === '日付未設定' || b === '未分類') return -1;
-        return a.localeCompare(b);
-    });
+    const sortedKeys = Object.keys(groups).sort((a, b) => (a === '日付未設定' || a === '未分類') ? 1 : (b === '日付未設定' || b === '未分類' ? -1 : a.localeCompare(b)));
     
     let html = '';
     sortedKeys.forEach(key => {
-        html += `<div class="stat-group">
-            <h4 style="margin: 16px 0 8px 0; font-size: 13px; color: var(--text-secondary); border-bottom: 1px solid var(--border-color); padding-bottom: 4px; display: flex; justify-content: space-between;">
-                <span>${key === '日付未設定' || key === '未分類' ? key : (groupBy === 'date' ? '📅 ' + key : '📁 ' + key)}</span>
-                <span style="font-weight: normal; background: var(--bg-color); padding: 2px 8px; border-radius: 12px; font-size: 11px;">${groups[key].length}件</span>
-            </h4>
-            <div style="display: flex; flex-direction: column; gap: 8px;">`;
-            
+        html += `<div class="stat-group"><h4 style="margin: 16px 0 8px 0; border-bottom: 1px solid var(--border-color); padding-bottom: 4px; display: flex; justify-content: space-between;"><span>${key === '日付未設定' || key === '未分類' ? key : (groupBy === 'date' ? '📅 ' + key : '📁 ' + key)}</span><span style="font-weight: normal; background: var(--bg-color); padding: 2px 8px; border-radius: 12px; font-size: 11px;">${groups[key].length}件</span></h4><div style="display: flex; flex-direction: column; gap: 8px;">`;
         groups[key].forEach(t => {
             const extraInfo = groupBy === 'date' ? (t.category ? `📁 ${t.category}` : '') : (t.deadline ? `📅 ${t.deadline.replace('T', ' ')}` : '');
-            
-            html += `
-                <div style="font-size: 14px; display: flex; flex-direction: column; background: var(--bg-color); padding: 10px 12px; border-radius: 8px; border-left: 3px solid ${t.completed ? '#34c759' : '#007aff'};">
-                    <span style="font-weight: 600; ${t.completed ? 'text-decoration: line-through; color: var(--text-secondary);' : ''}">${t.title}</span>
-                    ${extraInfo ? `<span style="font-size: 11px; color: var(--text-secondary); margin-top: 4px;">${extraInfo}</span>` : ''}
-                </div>
-            `;
+            html += `<div style="font-size: 14px; display: flex; flex-direction: column; background: var(--bg-color); padding: 10px 12px; border-radius: 8px; border-left: 3px solid ${t.completed ? '#34c759' : '#007aff'};"><span style="font-weight: 600; ${t.completed ? 'text-decoration: line-through; color: var(--text-secondary);' : ''}">${t.title}</span>${extraInfo ? `<span style="font-size: 11px; color: var(--text-secondary); margin-top: 4px;">${extraInfo}</span>` : ''}</div>`;
         });
-        
         html += `</div></div>`;
     });
-    
     container.innerHTML = html;
 }
 
@@ -895,8 +764,5 @@ function updateStats() {
     document.getElementById('stat-completed').innerText = completed;
     document.getElementById('stat-rate').innerText = `${rate}%`;
     document.getElementById('stat-progress').style.width = `${rate}%`;
-
-    if (currentStatStatus) {
-        renderStatDetails();
-    }
+    if (currentStatStatus) renderStatDetails();
 }
