@@ -111,7 +111,13 @@ function fetchAppVersion() {
     fetch('sw.js', {cache: "no-store"}).then(res => res.text()).then(text => {
         const match = text.match(/CACHE_NAME\s*=\s*['"]([^'"]+)['"]/);
         if (match && match[1]) {
-            document.getElementById('app-version-info').innerText = `現在のバージョン: ${match[1].replace('taskflow-cache-', '')}`;
+            // 文字列を整形し、v-〇〇の形式のみを表示する
+            let verStr = match[1].replace('taskflow-cache-', '');
+            // 「v36」のような形式なら「v-36」に整形する
+            if (verStr.match(/^v\d+$/)) {
+                verStr = verStr.replace('v', 'v-');
+            }
+            document.getElementById('app-version-info').innerText = `現在のバージョン: ${verStr}`;
         }
     }).catch(() => {});
 }
@@ -226,6 +232,41 @@ function setupUI() {
             const url = URL.createObjectURL(blob);
             const a = document.createElement('a'); a.href = url; a.download = `taskflow_backup.json`;
             document.body.appendChild(a); a.click(); document.body.removeChild(a);
+        });
+    }
+
+    // ★ 復元(JSON読込)の処理を復活 ★
+    const inputRestore = document.getElementById('input-restore');
+    if (inputRestore) {
+        inputRestore.addEventListener('change', async (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = async (evt) => {
+                try {
+                    const tasks = JSON.parse(evt.target.result);
+                    if (!Array.isArray(tasks)) throw new Error('Invalid format');
+                    if (confirm(`読み込んだ ${tasks.length} 件のデータで復元しますか？\n※現在のデータは完全に上書き消去されます。`)) {
+                        const db = getDB();
+                        const tx = db.transaction('tasks', 'readwrite');
+                        tx.objectStore('tasks').clear();
+                        await new Promise((resolve, reject) => {
+                            tx.oncomplete = resolve;
+                            tx.onerror = reject;
+                        });
+                        for (const task of tasks) {
+                            await saveTask(task);
+                        }
+                        alert('データの復元が完了しました。');
+                        loadTasks();
+                        if (document.getElementById('view-stats').classList.contains('active')) updateStats();
+                    }
+                } catch (err) {
+                    alert('ファイルの読み込みに失敗しました。正しいJSONファイルを選択してください。');
+                }
+                e.target.value = ''; // ファイル選択をリセット
+            };
+            reader.readAsText(file);
         });
     }
 
@@ -380,13 +421,9 @@ function applySwipeToDelete(wrapperEl, taskItemEl, task) {
     window.addEventListener('mousemove', moveDrag);
     window.addEventListener('mouseup', endDrag);
 
-    // ★ここで「タップしたら詳細(モーダル)が開く」処理を実装★
     taskItemEl.addEventListener('click', (e) => {
-        // 大きくスワイプした後の指離しによる誤クリックは無視
         if (Math.abs(lastMoveX) > 10) { e.preventDefault(); return; }
-        // チェックボックスやリンクなどを直接タップした場合は開かない
         if (e.target.closest('input') || e.target.closest('a')) return;
-        
         openModal(task);
     });
 }
@@ -419,7 +456,6 @@ function renderTasks() {
             li.className = `task-item-wrapper ${task.completed ? 'completed' : ''}`;
             const priorityIcon = task.priority == 3 ? '🔥高' : (task.priority == 2 ? '⭐中' : '🌱低');
             
-            // ★重要：ここに<button class="btn-edit">詳細</button>や<button class="btn-del">削除</button>のHTMLコードは一切記述していません★
             li.innerHTML = `
                 <div class="task-swipe-bg">
                     <span class="left-action">🗑️ 削除</span>
@@ -495,8 +531,6 @@ function renderCalendar(restoreSelectedDate = null) {
             const dayTasks = currentTasks.filter(t => isTaskOnDate(t, dateStr));
             let taskHtml = dayTasks.length === 0 ? '<p style="color:var(--text-secondary)">タスクはありません</p>' : dayTasks.map(t => {
                 const timePart = (t.deadline && t.deadline.startsWith(dateStr) && t.deadline.includes('T')) ? t.deadline.split('T')[1] : '';
-                
-                // ★カレンダー画面のタスク描画部分でも、ボタンのHTMLは一切記述していません★
                 return `
                 <div class="task-item-wrapper cal-task-wrapper" data-task-id="${t.id}" style="margin-bottom:8px;">
                     <div class="task-swipe-bg" style="border-radius: 8px;">
