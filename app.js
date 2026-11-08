@@ -250,7 +250,6 @@ function setupUI() {
         }
     });
     
-    // クリーンにクラスを切り替えるだけの閉じる処理
     function closeModal() {
         const modal = document.getElementById('task-modal');
         modal.classList.add('hidden');
@@ -319,6 +318,118 @@ function setupUI() {
     document.getElementById('filter-status').addEventListener('change', renderTasks);
     document.getElementById('sort-select').addEventListener('change', renderTasks);
     document.getElementById('btn-manual-update').addEventListener('click', checkForUpdateManual);
+
+    // ==========================================
+    // 設定画面のイベントリスナー追加（確実な修正）
+    // ==========================================
+    const btnRequestNotify = document.getElementById('btn-request-notify');
+    if (btnRequestNotify) {
+        btnRequestNotify.addEventListener('click', async () => {
+            if (!("Notification" in window)) {
+                alert("このブラウザ・端末は通知機能をサポートしていません。iOSの場合は「ホーム画面に追加」から起動してください。");
+                return;
+            }
+            try {
+                let permission = Notification.permission;
+                if (permission === "granted") {
+                    alert("既に通知は許可されています。");
+                } else if (permission !== "denied") {
+                    permission = await Notification.requestPermission();
+                    if (permission === "granted") {
+                        alert("通知が許可されました！");
+                    } else {
+                        alert("通知が許可されませんでした。");
+                    }
+                } else {
+                    alert("通知がブロックされています。端末の設定から許可してください。");
+                }
+            } catch (e) {
+                alert("通知設定の呼び出しに失敗しました。");
+            }
+        });
+    }
+
+    const btnBackup = document.getElementById('btn-backup');
+    if (btnBackup) {
+        btnBackup.addEventListener('click', async () => {
+            try {
+                const tasks = await getAllTasks();
+                // Blobを用いた安定したファイル生成とダウンロード（iOS対応）
+                const blob = new Blob([JSON.stringify(tasks, null, 2)], { type: 'application/json' });
+                const url = URL.createObjectURL(blob);
+                
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `taskflow_backup_${new Date().toISOString().split('T')[0]}.json`;
+                
+                document.body.appendChild(a);
+                a.click();
+                
+                // クリーンアップ
+                setTimeout(() => {
+                    document.body.removeChild(a);
+                    URL.revokeObjectURL(url);
+                }, 100);
+            } catch (e) {
+                alert('バックアップの作成に失敗しました。');
+                console.error(e);
+            }
+        });
+    }
+
+    const inputRestore = document.getElementById('input-restore');
+    if (inputRestore) {
+        inputRestore.addEventListener('change', async (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = async (evt) => {
+                try {
+                    const tasks = JSON.parse(evt.target.result);
+                    if (!Array.isArray(tasks)) throw new Error('Invalid format');
+                    if (confirm(`読み込んだ ${tasks.length} 件のデータで復元しますか？\n※現在のデータは完全に上書き消去されます。`)) {
+                        const db = getDB();
+                        const tx = db.transaction('tasks', 'readwrite');
+                        tx.objectStore('tasks').clear();
+                        await new Promise((resolve, reject) => {
+                            tx.oncomplete = resolve;
+                            tx.onerror = reject;
+                        });
+                        for (const task of tasks) {
+                            await saveTask(task);
+                        }
+                        alert('データの復元が完了しました。');
+                        loadTasks();
+                        if (document.getElementById('view-stats').classList.contains('active')) updateStats();
+                    }
+                } catch (err) {
+                    alert('ファイルの読み込みに失敗しました。正しいJSONファイルを選択してください。');
+                }
+                e.target.value = '';
+            };
+            reader.readAsText(file);
+        });
+    }
+
+    const btnClearAll = document.getElementById('btn-clear-all');
+    if (btnClearAll) {
+        btnClearAll.addEventListener('click', async () => {
+            if (confirm('⚠️ 本当にすべてのデータを消去しますか？この操作は取り消せません。')) {
+                try {
+                    const db = getDB();
+                    const tx = db.transaction('tasks', 'readwrite');
+                    tx.objectStore('tasks').clear();
+                    tx.oncomplete = () => {
+                        alert('全データを消去しました。');
+                        loadTasks();
+                        if (document.getElementById('view-stats').classList.contains('active')) updateStats();
+                    };
+                } catch (e) {
+                    alert('データの消去に失敗しました。');
+                }
+            }
+        });
+    }
 }
 
 function addUrlField(name = '', url = '') {
@@ -373,7 +484,6 @@ function renderExtraDates() {
     });
 }
 
-// クリーンに表示させる処理
 function openModal(task = null, defaultDateStr = null) {
     document.getElementById('modal-title').innerText = task ? '詳細を編集' : '新しいタスク';
     document.getElementById('task-id').value = task ? task.id : '';
@@ -419,7 +529,6 @@ function openModal(task = null, defaultDateStr = null) {
         });
     }
     
-    // 表示処理
     const modal = document.getElementById('task-modal');
     modal.classList.remove('hidden');
 }

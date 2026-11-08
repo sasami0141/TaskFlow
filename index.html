@@ -94,10 +94,6 @@
         .extra-date-item { display: inline-flex; align-items: center; background: var(--bg-color); padding: 4px 8px; border-radius: 12px; font-size: 12px; margin: 4px 4px 0 0; border: 1px solid var(--border-color); }
         .btn-remove-date { background: transparent; border: none; color: var(--danger-color); margin-left: 4px; cursor: pointer; font-weight: bold; }
 
-        /* =========================================
-           モーダル（タスク追加）の表示・背景の確実な修正
-           （変数に頼らず背景色を絶対指定して透けないようにする）
-           ========================================= */
         .modal {
             position: fixed !important;
             top: 0 !important; left: 0 !important; width: 100vw !important; height: 100vh !important;
@@ -106,7 +102,7 @@
             justify-content: center !important;
             padding: 20px !important;
             box-sizing: border-box !important;
-            z-index: 999999 !important; /* 最前面に強制 */
+            z-index: 999999 !important;
             opacity: 1;
             visibility: visible;
             transition: opacity 0.2s ease, visibility 0.2s ease;
@@ -117,7 +113,6 @@
             pointer-events: none !important;
         }
         
-        /* 後ろの黒い半透明を画面全体に固定 */
         .modal-overlay {
             position: fixed !important;
             top: 0 !important; left: 0 !important; width: 100vw !important; height: 100vh !important;
@@ -125,14 +120,12 @@
             z-index: 1 !important;
         }
         
-        /* モーダルの中身（白い枠/ダークモード時は黒） */
         .modal-content {
             display: flex !important;
             flex-direction: column !important;
             max-height: 85vh !important;
             padding: 0 !important;
             overflow: hidden !important;
-            /* 背景色を明示的に指定 (変数が効かない場合への対策) */
             background-color: #ffffff !important;
             width: 100% !important;
             max-width: 500px !important;
