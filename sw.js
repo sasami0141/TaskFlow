@@ -1,4 +1,4 @@
-const CACHE_NAME = 'taskflow-cache-v28';
+const CACHE_NAME = 'taskflow-cache-v30';
 const urlsToCache = [
   './',
   './index.html',
