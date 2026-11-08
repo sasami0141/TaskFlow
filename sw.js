@@ -1,38 +1,33 @@
-const CACHE_NAME = 'taskflow-cache-v23';
-const urlsToCache = [
-  './',
-  './index.html',
-  './css/style.css',
-  './js/app.js',
-  './manifest.json',
-  './taskflow_icon.png'
-];
+const CACHE_NAME = 'taskflow-cache-v24-bypassed';
+
+// キャッシュを一切使わず、即座に新しいコードを反映させる強力な設定
 
 self.addEventListener('install', event => {
-  event.waitUntil(
-    caches.open(CACHE_NAME).then(cache => cache.addAll(urlsToCache))
-  );
+    // 待機状態をスキップし、即座にこのワーカーをアクティブにする
+    self.skipWaiting();
 });
 
 self.addEventListener('activate', event => {
-  event.waitUntil(
-    caches.keys().then(cacheNames => {
-      return Promise.all(
-        cacheNames.map(cacheName => {
-          if (cacheName !== CACHE_NAME) {
-            return caches.delete(cacheName);
-          }
+    event.waitUntil(
+        // 全ての古いキャッシュを無条件で削除する
+        caches.keys().then(cacheNames => {
+            return Promise.all(
+                cacheNames.map(cacheName => caches.delete(cacheName))
+            );
         })
-      );
-    })
-  );
-  self.clients.claim();
+    );
+    // 開いている全てのページを即座にコントロール下に置く
+    self.clients.claim();
 });
 
 self.addEventListener('fetch', event => {
-  event.respondWith(
-    caches.match(event.request).then(response => response || fetch(event.request))
-  );
+    // 常にネットワーク（最新のファイル）から取得する Network-First
+    event.respondWith(
+        fetch(event.request).catch(() => {
+            // ネットワークが使えない場合のみキャッシュを見る
+            return caches.match(event.request);
+        })
+    );
 });
 
 self.addEventListener('message', event => {
