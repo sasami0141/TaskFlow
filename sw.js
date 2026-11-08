@@ -1,9 +1,9 @@
-const CACHE_NAME = 'v36'; // バージョン表記をスッキリ
+const CACHE_NAME = 'v37';
 const urlsToCache = [
   './',
   './index.html',
   './css/style.css',
-  './js/app.js?v=36',
+  './js/app.js?v=37',
   './manifest.json',
   './taskflow_icon.png'
 ];

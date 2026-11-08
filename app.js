@@ -108,12 +108,10 @@ function setupServiceWorker() {
     }
 }
 function fetchAppVersion() {
-    fetch('sw.js', {cache: "no-store"}).then(res => res.text()).then(text => {
+    return fetch('sw.js', {cache: "no-store"}).then(res => res.text()).then(text => {
         const match = text.match(/CACHE_NAME\s*=\s*['"]([^'"]+)['"]/);
         if (match && match[1]) {
-            // 文字列を整形し、v-〇〇の形式のみを表示する
             let verStr = match[1].replace('taskflow-cache-', '');
-            // 「v36」のような形式なら「v-36」に整形する
             if (verStr.match(/^v\d+$/)) {
                 verStr = verStr.replace('v', 'v-');
             }
@@ -127,7 +125,6 @@ let currentTasks = [];
 let calDate = new Date();
 let selectedDateStr = null;
 let currentExtraDates = []; 
-let currentStatStatus = null; 
 
 document.addEventListener('DOMContentLoaded', async () => {
     await initDB();
@@ -223,6 +220,41 @@ function setupUI() {
         });
     }
 
+    // 更新確認ボタンの処理を追加
+    const btnUpdate = document.getElementById('btn-manual-update');
+    if (btnUpdate) {
+        btnUpdate.addEventListener('click', async () => {
+            const originalText = btnUpdate.innerHTML;
+            btnUpdate.innerHTML = '🔄 更新を確認中...';
+            btnUpdate.disabled = true;
+            btnUpdate.style.opacity = '0.6';
+
+            try {
+                // 強制的に最新のバージョン情報を取得
+                await fetchAppVersion();
+                
+                if ('serviceWorker' in navigator) {
+                    const reg = await navigator.serviceWorker.getRegistration();
+                    if (reg) {
+                        await reg.update(); // Service Workerの更新をチェック
+                    }
+                }
+                
+                // UXのために少しだけ待つ
+                await new Promise(resolve => setTimeout(resolve, 800));
+                
+                alert("確認が完了しました。新しいバージョンがある場合は自動的にリロードされて反映されます。");
+            } catch (err) {
+                alert("確認中にエラーが発生しました。インターネット接続を確認してください。");
+            } finally {
+                // ボタンの見た目を元に戻す
+                btnUpdate.innerHTML = originalText;
+                btnUpdate.disabled = false;
+                btnUpdate.style.opacity = '1';
+            }
+        });
+    }
+
     const btnBackup = document.getElementById('btn-backup');
     if (btnBackup) {
         btnBackup.addEventListener('click', async () => {
@@ -235,37 +267,56 @@ function setupUI() {
         });
     }
 
-    // ★ 復元(JSON読込)の処理を復活 ★
+    // ★ 復元(JSON読込)の処理を確実に修正 ★
     const inputRestore = document.getElementById('input-restore');
     if (inputRestore) {
         inputRestore.addEventListener('change', async (e) => {
             const file = e.target.files[0];
             if (!file) return;
+
             const reader = new FileReader();
             reader.onload = async (evt) => {
                 try {
                     const tasks = JSON.parse(evt.target.result);
-                    if (!Array.isArray(tasks)) throw new Error('Invalid format');
+                    
+                    // 単純な配列かどうかのチェック
+                    if (!Array.isArray(tasks)) {
+                        alert('エラー: バックアップファイル（JSON）の形式が正しくありません。');
+                        return;
+                    }
+
                     if (confirm(`読み込んだ ${tasks.length} 件のデータで復元しますか？\n※現在のデータは完全に上書き消去されます。`)) {
                         const db = getDB();
                         const tx = db.transaction('tasks', 'readwrite');
                         tx.objectStore('tasks').clear();
+                        
+                        // 削除が完了するのを待つ
                         await new Promise((resolve, reject) => {
                             tx.oncomplete = resolve;
                             tx.onerror = reject;
                         });
+                        
+                        // ひとつずつ保存し直す
+                        let count = 0;
                         for (const task of tasks) {
                             await saveTask(task);
+                            count++;
                         }
-                        alert('データの復元が完了しました。');
+                        
+                        alert(`${count} 件のデータの復元が完了しました！`);
                         loadTasks();
                         if (document.getElementById('view-stats').classList.contains('active')) updateStats();
                     }
                 } catch (err) {
-                    alert('ファイルの読み込みに失敗しました。正しいJSONファイルを選択してください。');
+                    console.error("Restore Error:", err);
+                    alert('ファイルの読み込みに失敗しました。ファイルが破損しているか、正しいJSON形式ではありません。');
+                } finally {
+                    // 同じファイルを再度選べるようにリセットする
+                    e.target.value = '';
                 }
-                e.target.value = ''; // ファイル選択をリセット
             };
+            
+            // ファイルの読み取りを開始
             reader.readAsText(file);
         });
     }
