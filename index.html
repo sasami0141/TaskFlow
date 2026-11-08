@@ -95,6 +95,50 @@
         .extra-date-item { display: inline-flex; align-items: center; background: var(--bg-color); padding: 4px 8px; border-radius: 12px; font-size: 12px; margin: 4px 4px 0 0; border: 1px solid var(--border-color); }
         .btn-remove-date { background: transparent; border: none; color: var(--danger-color); margin-left: 4px; cursor: pointer; font-weight: bold; }
 
+        /* スワイプ削除・タップ詳細用スタイル */
+        .task-item-wrapper {
+            position: relative;
+            border-radius: 8px;
+            margin-bottom: 12px;
+            background-color: #ff3b30;
+            overflow: hidden;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+        }
+        .task-swipe-bg {
+            position: absolute;
+            top: 0; left: 0; right: 0; bottom: 0;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 0 20px;
+            color: white;
+            font-weight: bold;
+            z-index: 1;
+        }
+        .task-swipe-bg span {
+            opacity: 0;
+            transition: opacity 0.1s;
+        }
+        .task-item-wrapper .task-item {
+            margin-bottom: 0 !important;
+            background-color: var(--card-bg, #ffffff);
+            position: relative;
+            z-index: 2;
+            touch-action: pan-y;
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            padding: 12px;
+        }
+        [data-theme="dark"] .task-item-wrapper .task-item {
+            background-color: #1c1c1e;
+        }
+        .task-item-wrapper .task-item:active {
+            background-color: rgba(0,0,0,0.02);
+        }
+        [data-theme="dark"] .task-item-wrapper .task-item:active {
+            background-color: rgba(255,255,255,0.05);
+        }
+
         .modal {
             position: fixed !important;
             top: 0 !important; left: 0 !important; width: 100vw !important; height: 100vh !important;
@@ -179,7 +223,6 @@
         .multi-item-row { display: flex; gap: 8px; align-items: center; }
         .btn-remove-item { position: absolute; top: 4px; right: 4px; background: transparent; border: none; color: var(--danger-color); font-size: 18px; cursor: pointer; line-height: 1; }
         
-        .cal-task-clickable:active { opacity: 0.7; }
     </style>
 </head>
 <body>
@@ -219,7 +262,7 @@
                 <p>タスクがありません。<br>右下の＋ボタンから追加しましょう！</p>
             </div>
 
-            <ul id="task-list"></ul>
+            <ul id="task-list" style="padding: 0; list-style: none;"></ul>
         </section>
 
         <section id="view-calendar" class="view">

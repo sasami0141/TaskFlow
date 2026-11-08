@@ -344,10 +344,6 @@ function setupUI() {
     document.getElementById('sort-select').addEventListener('change', renderTasks);
     document.getElementById('btn-manual-update').addEventListener('click', checkForUpdateManual);
 
-    // =========================================================================
-    // 設定画面の機能（通知許可・バックアップ・復元・全消去）のイベント登録
-    // =========================================================================
-    
     const btnRequestNotify = document.getElementById('btn-request-notify');
     if (btnRequestNotify) {
         btnRequestNotify.addEventListener('click', async () => {
@@ -456,6 +452,73 @@ function setupUI() {
     }
 }
 
+function applySwipeToDelete(wrapperEl, taskItemEl, task) {
+    let startX = 0, currentX = 0, isDragging = false, lastMoveX = 0;
+
+    taskItemEl.addEventListener('pointerdown', (e) => {
+        if (e.target.closest('input') || e.target.closest('button') || e.target.closest('a') || e.target.closest('select')) return;
+        if (e.pointerType === 'mouse' && e.button !== 0) return;
+        
+        startX = e.clientX;
+        currentX = 0;
+        lastMoveX = 0;
+        isDragging = true;
+        taskItemEl.style.transition = 'none';
+        taskItemEl.setPointerCapture(e.pointerId);
+    });
+
+    taskItemEl.addEventListener('pointermove', (e) => {
+        if (!isDragging) return;
+        currentX = e.clientX - startX;
+        lastMoveX = currentX;
+        
+        taskItemEl.style.transform = `translateX(${currentX}px)`;
+        const swipeBg = wrapperEl.querySelector('.task-swipe-bg');
+        if (currentX > 0) {
+            swipeBg.querySelector('.left-action').style.opacity = Math.min(currentX / 60, 1);
+            swipeBg.querySelector('.right-action').style.opacity = 0;
+        } else {
+            swipeBg.querySelector('.right-action').style.opacity = Math.min(Math.abs(currentX) / 60, 1);
+            swipeBg.querySelector('.left-action').style.opacity = 0;
+        }
+    });
+
+    const endDrag = async (e) => {
+        if (!isDragging) return;
+        isDragging = false;
+        taskItemEl.releasePointerCapture(e.pointerId);
+        taskItemEl.style.transition = 'transform 0.2s ease-out';
+        
+        if (Math.abs(currentX) > 80) {
+            const dir = currentX > 0 ? 1 : -1;
+            taskItemEl.style.transform = `translateX(${dir * window.innerWidth}px)`;
+            setTimeout(async () => {
+                if(confirm('本当に削除しますか？')) {
+                    await deleteTask(task.id);
+                    loadTasks();
+                    if (document.getElementById('view-calendar').classList.contains('active')) renderCalendar(selectedDateStr);
+                } else {
+                    taskItemEl.style.transform = 'translateX(0)';
+                }
+            }, 250);
+        } else {
+            taskItemEl.style.transform = 'translateX(0)';
+        }
+    };
+
+    taskItemEl.addEventListener('pointerup', endDrag);
+    taskItemEl.addEventListener('pointercancel', endDrag);
+
+    taskItemEl.addEventListener('click', (e) => {
+        if (Math.abs(lastMoveX) > 10) {
+            e.preventDefault();
+            return;
+        }
+        if (e.target.closest('input') || e.target.closest('button') || e.target.closest('a') || e.target.closest('img')) return;
+        openModal(task);
+    });
+}
+
 function addUrlField(name = '', url = '', description = '', image = '') {
     const container = document.getElementById('urls-container');
     const div = document.createElement('div');
@@ -463,7 +526,7 @@ function addUrlField(name = '', url = '', description = '', image = '') {
     div.innerHTML = `<button type="button" class="btn-remove-item" title="削除">×</button>
         <div class="multi-item-row"><span style="font-size: 12px; width: 40px;">URL</span><input type="url" class="url-val" placeholder="https://..." value="${url}"></div>
         <div class="multi-item-row"><span style="font-size: 12px; width: 40px;"></span><button type="button" class="btn-fetch-meta btn-secondary" style="font-size:11px; padding:4px 8px; border-radius:4px;">ページ情報を自動取得</button></div>
-        <div class="multi-item-row"><span style="font-size: 12px; width: 40px;">名前</span><input type="text" class="url-name" placeholder="リンクの名前（空ならURLか自動取得）" value="${name}"></div>
+        <div class="multi-item-row"><span style="font-size: 12px; width: 40px;">名前</span><input type="text" class="url-name" placeholder="リンクの名前（空なら自動取得）" value="${name}"></div>
         <input type="hidden" class="url-desc" value="${description}">
         <input type="hidden" class="url-img" value="${image}">
         <div class="url-preview-card" style="${(name || image || description) ? 'display:flex;' : 'display:none;'} margin-top:8px; border:1px solid var(--border-color); border-radius:8px; overflow:hidden; font-size:12px; background:var(--bg-color);">
@@ -630,9 +693,9 @@ function renderTasks() {
         emptyState.classList.add('hidden');
         filtered.forEach(task => {
             const li = document.createElement('li');
-            li.className = `task-item ${task.completed ? 'completed' : ''}`;
-            const priorityIcon = task.priority == 3 ? '🔥高' : (task.priority == 2 ? '⭐中' : '🌱低');
+            li.className = `task-item-wrapper ${task.completed ? 'completed' : ''}`;
             
+            const priorityIcon = task.priority == 3 ? '🔥高' : (task.priority == 2 ? '⭐中' : '🌱低');
             let extraDatesHtml = task.extraDates && task.extraDates.length > 0 ? `<span class="inline-date-wrapper" style="font-size:11px;">+追加 ${task.extraDates.length}日</span>` : '';
             
             let urlPreviewHtml = (task.urls && task.urls.length > 0) ? `<div style="display:flex; flex-direction:column; gap:8px; margin-top:8px;">` + task.urls.map(u => {
@@ -660,21 +723,28 @@ function renderTasks() {
             let dateHtml = (startValue && deadlineValue) ? `📅 <span style="font-size:12px; color:var(--text-secondary); margin-right:4px;">${startValue.replace('T', ' ')} 〜</span> <input type="datetime-local" class="inline-edit-date" value="${deadlineValue}">` : `📅 <input type="datetime-local" class="inline-edit-date" value="${deadlineValue}">`;
 
             li.innerHTML = `
-                <div class="task-header"><input type="checkbox" class="task-chk" ${task.completed ? 'checked' : ''}>
-                    <div class="task-content"><input type="text" class="inline-edit-title" value="${task.title}"><div class="task-meta"><span class="inline-date-wrapper">${dateHtml}</span>${extraDatesHtml}<span class="inline-date-wrapper">${priorityIcon}</span></div>${urlPreviewHtml}${imagePreviewHtml}${subtasksHtml}</div>
+                <div class="task-swipe-bg">
+                    <span class="left-action">🗑️ 削除</span>
+                    <span class="right-action">🗑️ 削除</span>
                 </div>
-                <div class="task-actions"><button class="btn-text btn-edit">詳細</button><button class="btn-text danger btn-del">削除</button></div>`;
+                <div class="task-item">
+                    <div class="task-header"><input type="checkbox" class="task-chk" ${task.completed ? 'checked' : ''}>
+                        <div class="task-content"><input type="text" class="inline-edit-title" value="${task.title}"><div class="task-meta"><span class="inline-date-wrapper">${dateHtml}</span>${extraDatesHtml}<span class="inline-date-wrapper">${priorityIcon}</span></div>${urlPreviewHtml}${imagePreviewHtml}${subtasksHtml}</div>
+                    </div>
+                </div>`;
             
-            li.querySelector('.inline-edit-title').addEventListener('change', async e => { task.title = e.target.value; await saveTask(task); });
-            li.querySelector('.inline-edit-title').addEventListener('click', e => e.stopPropagation());
+            const taskItemEl = li.querySelector('.task-item');
             
-            li.querySelector('.inline-edit-date').addEventListener('change', async e => {
+            taskItemEl.querySelector('.inline-edit-title').addEventListener('change', async e => { task.title = e.target.value; await saveTask(task); });
+            taskItemEl.querySelector('.inline-edit-title').addEventListener('click', e => e.stopPropagation());
+            
+            taskItemEl.querySelector('.inline-edit-date').addEventListener('change', async e => {
                 task.deadline = e.target.value; await saveTask(task);
                 if (document.getElementById('sort-select').value === 'deadline') loadTasks();
             });
-            li.querySelector('.inline-edit-date').addEventListener('click', e => e.stopPropagation());
+            taskItemEl.querySelector('.inline-edit-date').addEventListener('click', e => e.stopPropagation());
 
-            li.querySelectorAll('.home-st-chk').forEach(chk => {
+            taskItemEl.querySelectorAll('.home-st-chk').forEach(chk => {
                 chk.addEventListener('change', async (e) => {
                     const idx = e.target.dataset.index;
                     task.subtasks[idx].completed = e.target.checked;
@@ -685,14 +755,14 @@ function renderTasks() {
                 });
             });
 
-            li.querySelector('.task-chk').addEventListener('change', async (e) => {
+            taskItemEl.querySelector('.task-chk').addEventListener('change', async (e) => {
                 if (e.target.checked && !task.completed) {
-                    li.classList.add('completing');
+                    taskItemEl.classList.add('completing');
                     setTimeout(async () => { await toggleTaskStatus(task); loadTasks(); }, 500);
                 } else { await toggleTaskStatus(task); loadTasks(); }
             });
-            li.querySelector('.btn-edit').addEventListener('click', () => openModal(task));
-            li.querySelector('.btn-del').addEventListener('click', async () => { if(confirm('本当に削除しますか？')) { await deleteTask(task.id); loadTasks(); }});
+
+            applySwipeToDelete(li, taskItemEl, task);
             list.appendChild(li);
         });
     }
@@ -765,21 +835,28 @@ function renderCalendar(restoreSelectedDate = null) {
                     }
                 }).join('') + `</div>` : '';
 
-                return `<div class="task-item cal-task-clickable" data-task-id="${t.id}" style="padding:12px; margin-bottom:8px; display:flex; flex-direction:column; align-items:flex-start; cursor:pointer; border: 1px solid var(--border-color); border-radius: 8px;">
-                    <div style="font-weight:600; width:100%;">${t.completed?'✓ ':'🟢 '}${t.title} <span style="font-size: 0.8em; color: var(--text-secondary); font-weight:normal;">${timePart}</span>${extraBadge}${rangeBadge}</div>
-                    ${urlHtml}
-                    ${imgHtml}
+                return `
+                <div class="task-item-wrapper cal-task-wrapper" data-task-id="${t.id}" style="margin-bottom:8px;">
+                    <div class="task-swipe-bg" style="border-radius: 8px;">
+                        <span class="left-action">🗑️ 削除</span>
+                        <span class="right-action">🗑️ 削除</span>
+                    </div>
+                    <div class="task-item" style="display:flex; flex-direction:column; align-items:flex-start;">
+                        <div style="font-weight:600; width:100%; pointer-events:none;">${t.completed?'✓ ':'🟢 '}${t.title} <span style="font-size: 0.8em; color: var(--text-secondary); font-weight:normal;">${timePart}</span>${extraBadge}${rangeBadge}</div>
+                        ${urlHtml}
+                        ${imgHtml}
+                    </div>
                 </div>`;
             }).join('');
             
             taskHtml += `<button class="btn-outline full-width" style="margin-top:16px;" onclick="openModal(null, '${dateStr}')">＋ ${calDate.getMonth()+1}月${i}日にタスクを追加</button>`;
             const container = document.getElementById('calendar-tasks');
             container.innerHTML = `<h3>${calDate.getMonth()+1}月${i}日の予定</h3><br>` + taskHtml;
-            container.querySelectorAll('.cal-task-clickable').forEach(el => {
-                el.addEventListener('click', () => {
-                    const task = currentTasks.find(t => t.id === el.getAttribute('data-task-id'));
-                    if(task) openModal(task);
-                });
+            
+            container.querySelectorAll('.cal-task-wrapper').forEach(wrapperEl => {
+                const task = currentTasks.find(t => t.id === wrapperEl.getAttribute('data-task-id'));
+                const taskItemEl = wrapperEl.querySelector('.task-item');
+                if(task && taskItemEl) applySwipeToDelete(wrapperEl, taskItemEl, task);
             });
         };
         grid.appendChild(div);
