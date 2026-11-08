@@ -1,3 +1,26 @@
+// --- Meta data fetcher ---
+async function fetchUrlMetadata(url) {
+    try {
+        const proxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(url)}`;
+        const response = await fetch(proxyUrl);
+        if (!response.ok) throw new Error('Network error');
+        const data = await response.json();
+        const html = data.contents;
+        
+        const parser = new DOMParser();
+        const doc = parser.parseFromString(html, 'text/html');
+        
+        const title = doc.querySelector('title')?.innerText || doc.querySelector('meta[property="og:title"]')?.content || '';
+        const description = doc.querySelector('meta[property="og:description"]')?.content || doc.querySelector('meta[name="description"]')?.content || '';
+        const image = doc.querySelector('meta[property="og:image"]')?.content || '';
+        
+        return { title: title.trim(), description: description.trim(), image };
+    } catch (e) {
+        console.error('Error fetching metadata:', e);
+        return { title: '', description: '', image: '' };
+    }
+}
+
 // --- Database Module ---
 const DB_NAME = 'TaskFlowDB';
 const DB_VERSION = 1;
@@ -288,8 +311,10 @@ function setupUI() {
         })).filter(st => st.title.trim() !== '');
 
         const urls = Array.from(document.querySelectorAll('.url-input-item')).map(div => ({
-            name: div.querySelector('.url-name').value.trim() || 'リンク',
-            url: div.querySelector('.url-val').value.trim()
+            name: div.querySelector('.url-name').value.trim(),
+            url: div.querySelector('.url-val').value.trim(),
+            description: div.querySelector('.url-desc').value,
+            image: div.querySelector('.url-img').value
         })).filter(u => u.url !== '');
 
         const images = Array.from(document.querySelectorAll('.img-input-item')).map(div => ({
@@ -323,11 +348,9 @@ function setupUI() {
     // 設定画面の機能（通知許可・バックアップ・復元・全消去）のイベント登録
     // =========================================================================
     
-    // 通知ボタン
     const btnRequestNotify = document.getElementById('btn-request-notify');
     if (btnRequestNotify) {
         btnRequestNotify.addEventListener('click', async () => {
-            console.log("[設定] 通知ボタンクリック");
             if (!("Notification" in window)) {
                 alert("このブラウザ・端末は通知機能をサポートしていません。iOSの場合は「ホーム画面に追加」から起動してください。");
                 return;
@@ -348,18 +371,13 @@ function setupUI() {
                 }
             } catch (e) {
                 alert("通知設定の呼び出しに失敗しました。");
-                console.error(e);
             }
         });
-    } else {
-        console.warn("[設定] btn-request-notify が見つかりません");
     }
 
-    // バックアップボタン
     const btnBackup = document.getElementById('btn-backup');
     if (btnBackup) {
         btnBackup.addEventListener('click', async () => {
-            console.log("[設定] バックアップボタンクリック");
             try {
                 const tasks = await getAllTasks();
                 if (tasks.length === 0) {
@@ -379,18 +397,13 @@ function setupUI() {
                 }, 100);
             } catch (e) {
                 alert('バックアップの作成に失敗しました。');
-                console.error(e);
             }
         });
-    } else {
-        console.warn("[設定] btn-backup が見つかりません");
     }
 
-    // 復元ボタン（input）
     const inputRestore = document.getElementById('input-restore');
     if (inputRestore) {
         inputRestore.addEventListener('change', async (e) => {
-            console.log("[設定] データ復元ファイル選択");
             const file = e.target.files[0];
             if (!file) return;
             const reader = new FileReader();
@@ -416,19 +429,15 @@ function setupUI() {
                 } catch (err) {
                     alert('ファイルの読み込みに失敗しました。正しいJSONファイルを選択してください。');
                 }
-                e.target.value = ''; // リセット
+                e.target.value = '';
             };
             reader.readAsText(file);
         });
-    } else {
-        console.warn("[設定] input-restore が見つかりません");
     }
 
-    // 全データ消去ボタン
     const btnClearAll = document.getElementById('btn-clear-all');
     if (btnClearAll) {
         btnClearAll.addEventListener('click', async () => {
-            console.log("[設定] 全データ消去クリック");
             if (confirm('⚠️ 本当にすべてのデータを消去しますか？この操作は取り消せません。')) {
                 try {
                     const db = getDB();
@@ -444,19 +453,63 @@ function setupUI() {
                 }
             }
         });
-    } else {
-        console.warn("[設定] btn-clear-all が見つかりません");
     }
 }
 
-function addUrlField(name = '', url = '') {
+function addUrlField(name = '', url = '', description = '', image = '') {
     const container = document.getElementById('urls-container');
     const div = document.createElement('div');
     div.className = 'multi-item url-input-item';
     div.innerHTML = `<button type="button" class="btn-remove-item" title="削除">×</button>
-        <div class="multi-item-row"><span style="font-size: 12px; width: 40px;">名前</span><input type="text" class="url-name" placeholder="リンクの名前" value="${name}"></div>
-        <div class="multi-item-row"><span style="font-size: 12px; width: 40px;">URL</span><input type="url" class="url-val" placeholder="https://..." value="${url}"></div>`;
+        <div class="multi-item-row"><span style="font-size: 12px; width: 40px;">URL</span><input type="url" class="url-val" placeholder="https://..." value="${url}"></div>
+        <div class="multi-item-row"><span style="font-size: 12px; width: 40px;"></span><button type="button" class="btn-fetch-meta btn-secondary" style="font-size:11px; padding:4px 8px; border-radius:4px;">ページ情報を自動取得</button></div>
+        <div class="multi-item-row"><span style="font-size: 12px; width: 40px;">名前</span><input type="text" class="url-name" placeholder="リンクの名前（空ならURLか自動取得）" value="${name}"></div>
+        <input type="hidden" class="url-desc" value="${description}">
+        <input type="hidden" class="url-img" value="${image}">
+        <div class="url-preview-card" style="${(name || image || description) ? 'display:flex;' : 'display:none;'} margin-top:8px; border:1px solid var(--border-color); border-radius:8px; overflow:hidden; font-size:12px; background:var(--bg-color);">
+            ${image ? `<img src="${image}" style="width:60px; height:60px; object-fit:cover; flex-shrink:0;">` : ''}
+            <div style="padding:8px; display:flex; flex-direction:column; justify-content:center; overflow:hidden; flex:1;">
+                <div class="preview-title" style="font-weight:bold; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${name || url || 'プレビュー未取得'}</div>
+                ${description ? `<div class="preview-desc" style="color:var(--text-secondary); font-size:10px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${description}</div>` : ''}
+            </div>
+        </div>`;
+        
     div.querySelector('.btn-remove-item').onclick = () => div.remove();
+    
+    div.querySelector('.btn-fetch-meta').onclick = async () => {
+        const urlVal = div.querySelector('.url-val').value;
+        if (!urlVal) return alert('URLを入力してください');
+        
+        const btn = div.querySelector('.btn-fetch-meta');
+        const originalText = btn.innerText;
+        btn.innerText = '取得中...';
+        btn.disabled = true;
+        
+        const meta = await fetchUrlMetadata(urlVal);
+        
+        btn.innerText = originalText;
+        btn.disabled = false;
+        
+        const nameInput = div.querySelector('.url-name');
+        if (!nameInput.value && meta.title) {
+            nameInput.value = meta.title;
+        }
+        
+        div.querySelector('.url-desc').value = meta.description;
+        div.querySelector('.url-img').value = meta.image;
+        
+        const card = div.querySelector('.url-preview-card');
+        card.style.display = 'flex';
+        const currentName = nameInput.value || meta.title || urlVal;
+        card.innerHTML = `
+            ${meta.image ? `<img src="${meta.image}" style="width:60px; height:60px; object-fit:cover; flex-shrink:0;">` : ''}
+            <div style="padding:8px; display:flex; flex-direction:column; justify-content:center; overflow:hidden; flex:1;">
+                <div class="preview-title" style="font-weight:bold; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${currentName}</div>
+                ${meta.description ? `<div class="preview-desc" style="color:var(--text-secondary); font-size:10px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${meta.description}</div>` : ''}
+            </div>
+        `;
+    };
+    
     container.appendChild(div);
 }
 
@@ -524,7 +577,7 @@ function openModal(task = null, defaultDateStr = null) {
     document.getElementById('task-recurring').value = task ? task.recurring : 'none';
     
     document.getElementById('urls-container').innerHTML = '';
-    if (task && task.urls) task.urls.forEach(u => addUrlField(u.name, u.url));
+    if (task && task.urls) task.urls.forEach(u => addUrlField(u.name, u.url, u.description, u.image));
     else if (task && task.url) addUrlField('リンク', task.url);
 
     document.getElementById('images-container').innerHTML = '';
@@ -581,7 +634,23 @@ function renderTasks() {
             const priorityIcon = task.priority == 3 ? '🔥高' : (task.priority == 2 ? '⭐中' : '🌱低');
             
             let extraDatesHtml = task.extraDates && task.extraDates.length > 0 ? `<span class="inline-date-wrapper" style="font-size:11px;">+追加 ${task.extraDates.length}日</span>` : '';
-            let urlPreviewHtml = (task.urls && task.urls.length > 0) ? task.urls.map(u => `<a href="${u.url}" target="_blank" class="url-preview" onclick="event.stopPropagation()">🔗 ${u.name}</a>`).join(' ') : '';
+            
+            let urlPreviewHtml = (task.urls && task.urls.length > 0) ? `<div style="display:flex; flex-direction:column; gap:8px; margin-top:8px;">` + task.urls.map(u => {
+                const displayName = u.name || 'リンク';
+                if (u.image || u.description) {
+                    return `<a href="${u.url}" target="_blank" class="rich-url-preview" onclick="event.stopPropagation()" style="display:flex; text-decoration:none; color:inherit; border:1px solid var(--border-color); border-radius:8px; overflow:hidden; background:var(--bg-color);">
+                        ${u.image ? `<img src="${u.image}" style="width:60px; height:60px; object-fit:cover; flex-shrink:0; border-right:1px solid var(--border-color);">` : ''}
+                        <div style="padding:8px; display:flex; flex-direction:column; justify-content:center; overflow:hidden; flex:1;">
+                            <div style="font-size:12px; font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; color:var(--text-color);">${displayName}</div>
+                            ${u.description ? `<div style="font-size:10px; color:var(--text-secondary); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; margin-top:2px;">${u.description}</div>` : ''}
+                            <div style="font-size:10px; color:#007aff; margin-top:2px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${u.url}</div>
+                        </div>
+                    </a>`;
+                } else {
+                    return `<a href="${u.url}" target="_blank" class="url-preview" onclick="event.stopPropagation()">🔗 ${displayName}</a>`;
+                }
+            }).join('') + `</div>` : '';
+
             let imagePreviewHtml = (task.images && task.images.length > 0) ? `<div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:8px;">` + task.images.map(i => `<div style="display:flex; flex-direction:column; align-items:flex-start;"><span style="font-size:10px; color:var(--text-secondary);">${i.name}</span><img src="${i.data}" class="attachment-preview" onclick="event.stopPropagation()"></div>`).join('') + `</div>` : '';
 
             const subtasksHtml = task.subtasks && task.subtasks.length > 0 ? `<div class="home-subtasks">${task.subtasks.map((st, idx) => `<label class="home-subtask-item"><input type="checkbox" class="home-st-chk" data-index="${idx}" ${st.completed ? 'checked' : ''}><span class="${st.completed ? 'st-completed' : ''}">${st.title}</span></label>`).join('')}</div>` : '';
@@ -681,8 +750,24 @@ function renderCalendar(restoreSelectedDate = null) {
                 
                 let imgHtml = (t.images && t.images.length > 0) ? `<div style="display:flex; gap:6px; flex-wrap:wrap; margin-top:8px;">` + t.images.map(img => `<img src="${img.data}" style="height: 50px; width: 50px; object-fit: cover; border-radius: 6px; cursor: pointer; border: 1px solid var(--border-color);" onclick="event.stopPropagation(); window.open('${img.data}', '_blank');">`).join('') + `</div>` : '';
 
+                let urlHtml = (t.urls && t.urls.length > 0) ? `<div style="display:flex; flex-direction:column; gap:4px; margin-top:8px; width:100%;">` + t.urls.map(u => {
+                    const displayName = u.name || 'リンク';
+                    if(u.image || u.description) {
+                        return `<a href="${u.url}" target="_blank" onclick="event.stopPropagation()" style="display:flex; text-decoration:none; color:inherit; border:1px solid var(--border-color); border-radius:6px; overflow:hidden; background:var(--bg-color); width:100%;">
+                            ${u.image ? `<img src="${u.image}" style="width:40px; height:40px; object-fit:cover; flex-shrink:0; border-right:1px solid var(--border-color);">` : ''}
+                            <div style="padding:4px 8px; display:flex; flex-direction:column; justify-content:center; overflow:hidden; flex:1;">
+                                <div style="font-size:10px; font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; color:var(--text-color);">${displayName}</div>
+                                <div style="font-size:9px; color:#007aff; margin-top:2px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${u.url}</div>
+                            </div>
+                        </a>`;
+                    } else {
+                        return `<a href="${u.url}" target="_blank" class="url-preview" onclick="event.stopPropagation()" style="width:fit-content;">🔗 ${displayName}</a>`;
+                    }
+                }).join('') + `</div>` : '';
+
                 return `<div class="task-item cal-task-clickable" data-task-id="${t.id}" style="padding:12px; margin-bottom:8px; display:flex; flex-direction:column; align-items:flex-start; cursor:pointer; border: 1px solid var(--border-color); border-radius: 8px;">
                     <div style="font-weight:600; width:100%;">${t.completed?'✓ ':'🟢 '}${t.title} <span style="font-size: 0.8em; color: var(--text-secondary); font-weight:normal;">${timePart}</span>${extraBadge}${rangeBadge}</div>
+                    ${urlHtml}
                     ${imgHtml}
                 </div>`;
             }).join('');
