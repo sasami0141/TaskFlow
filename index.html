@@ -35,7 +35,6 @@
 
         .attachment-preview { max-width: 100%; max-height: 150px; border-radius: 8px; margin-top: 4px; object-fit: cover; display: block; }
         .url-preview { display: inline-block; margin-top: 4px; font-size: 12px; color: #007aff; background-color: rgba(0, 122, 255, 0.1); padding: 4px 8px; border-radius: 12px; text-decoration: none; word-break: break-all; }
-        .rich-url-preview:hover { opacity: 0.8; }
         
         .extra-date-item { display: inline-flex; align-items: center; background: var(--bg-color); padding: 4px 8px; border-radius: 12px; font-size: 12px; margin: 4px 4px 0 0; border: 1px solid var(--border-color); }
         .btn-remove-date { background: transparent; border: none; color: var(--danger-color); margin-left: 4px; cursor: pointer; font-weight: bold; }
@@ -66,14 +65,6 @@
     </style>
 </head>
 <body>
-    <div id="update-banner" style="display: none; position: fixed; top: 0; left: 0; right: 0; background-color: #34c759; color: white; padding: 12px 16px; justify-content: space-between; align-items: center; z-index: 9999; box-shadow: 0 4px 12px rgba(0,0,0,0.15);">
-        <p style="margin: 0; font-size: 14px; font-weight: bold;">新しいバージョンが利用可能です！</p>
-        <div style="display: flex; align-items: center;">
-            <button id="btn-update" style="padding: 8px 16px; font-size: 12px; border-radius: 4px; border: none; cursor: pointer; background-color: white; color: #34c759; font-weight: bold;">更新</button>
-            <button id="btn-update-dismiss" style="padding: 8px 12px; font-size: 12px; border-radius: 4px; border: none; cursor: pointer; background-color: transparent; color: white; text-decoration: underline; margin-left: 8px;">後で</button>
-        </div>
-    </div>
-
     <header class="app-header">
         <h1>TaskFlow</h1>
         <button id="theme-toggle" class="icon-btn">🌓</button>
@@ -102,7 +93,7 @@
 
         <section id="view-calendar" class="view"><div class="card"><div class="calendar-header"><button id="cal-prev" class="btn-icon">◀</button><h2 id="cal-month">2026年 11月</h2><button id="cal-next" class="btn-icon">▶</button></div><div id="calendar-grid"></div></div><div id="calendar-tasks" class="calendar-task-list"></div></section>
         
-        <section id="view-stats" class="view"><h2 class="section-title">あなたの進捗</h2><div class="stat-grid"><div class="stat-card" id="card-stat-active" style="cursor: pointer; transition: all 0.2s; border: 2px solid transparent;"><div class="stat-value" id="stat-active">0</div><div class="stat-label">未完了</div></div><div class="stat-card" id="card-stat-completed" style="cursor: pointer; transition: all 0.2s; border: 2px solid transparent;"><div class="stat-value highlight" id="stat-completed">0</div><div class="stat-label">完了済み</div></div><div class="stat-card full-width"><div class="stat-value text-primary" id="stat-rate">0%</div><div class="stat-label">達成率</div><div class="progress-bar-bg"><div class="progress-bar-fill" id="stat-progress"></div></div></div></div><div id="stat-details" class="card hidden" style="margin-top: 16px; border: 1px solid var(--border-color);"><div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;"><h3 id="stat-details-title" style="margin: 0; font-size: 16px;">内訳</h3><div class="filter-group" style="margin-bottom: 0;"><select id="stat-group-by" style="padding: 4px 8px; font-size: 12px; height: auto;"><option value="category">カテゴリー別</option><option value="date">日付別</option></select></div></div><div id="stat-details-content"></div></div></section>
+        <section id="view-stats" class="view"><h2 class="section-title">あなたの進捗</h2><div class="stat-grid"><div class="stat-card" id="card-stat-active"><div class="stat-value" id="stat-active">0</div><div class="stat-label">未完了</div></div><div class="stat-card" id="card-stat-completed"><div class="stat-value highlight" id="stat-completed">0</div><div class="stat-label">完了済み</div></div><div class="stat-card full-width"><div class="stat-value text-primary" id="stat-rate">0%</div><div class="stat-label">達成率</div><div class="progress-bar-bg"><div class="progress-bar-fill" id="stat-progress"></div></div></div></div></section>
 
         <section id="view-settings" class="view">
             <h2 class="section-title">設定</h2>
@@ -110,17 +101,20 @@
                 <h3 style="margin-top: 0; font-size: 14px; color: var(--text-secondary);">アプリ情報</h3>
                 <div style="margin-bottom: 20px;">
                     <p id="app-version-info" style="font-size:12px; font-weight:bold; margin-bottom: 8px;">バージョンを読み込み中...</p>
-                    <button id="btn-manual-update" class="btn-outline full-width" style="transition: all 0.2s;">🔄 手動で更新を確認</button>
-                    <p style="font-size:11px; color:var(--text-secondary); margin-top:8px;">※更新が反映されない場合は、ブラウザのキャッシュをクリアするか、ホーム画面から一度削除して再度追加してください。</p>
+                    <!-- 直接関数を呼び出して確実に発動させる -->
+                    <button class="btn-outline full-width" style="transition: all 0.2s;" onclick="handleManualUpdate(this)">🔄 手動で更新を確認</button>
+                    <p style="font-size:11px; color:var(--text-secondary); margin-top:8px;">※更新が反映されない場合はホーム画面から一度削除して再度追加してください。</p>
                 </div>
                 <div class="divider"></div>
                 <h3 style="margin-top: 0; font-size: 14px; color: var(--text-secondary);">データ管理</h3>
-                <p class="settings-desc">📝 データは安全にこの端末内にのみ保存されています。</p>
                 <div style="margin-bottom: 20px;"><button id="btn-request-notify" class="btn-primary full-width" style="background-color: #34c759;">🔔 通知を許可する</button></div>
                 <button id="btn-backup" class="btn-primary full-width">データのバックアップ (JSON)</button>
                 <div class="divider"></div>
-                <!-- 復元用のinputタグ -->
-                <label for="input-restore" class="file-label btn-secondary full-width">データの復元 (JSON読込)</label><input type="file" id="input-restore" accept=".json" style="display:none;">
+                
+                <!-- 直接onchangeを指定して確実に発動させる -->
+                <label for="input-restore" id="label-restore" class="file-label btn-secondary full-width" style="transition: all 0.2s;">データの復元 (JSON読込)</label>
+                <input type="file" id="input-restore" accept=".json" style="display:none;" onchange="handleRestoreData(this)">
+                
                 <div class="divider"></div>
                 <button id="btn-clear-all" class="btn-outline full-width" style="border-color:var(--danger-color); color:var(--danger-color);">⚠️ 全データを消去する</button>
             </div>
@@ -156,7 +150,7 @@
         <button class="nav-item" data-target="view-settings"><div class="nav-icon">⚙️</div><div class="nav-label">設定</div></button>
     </nav>
 
-    <!-- キャッシュバスターをv-37に更新 -->
-    <script src="js/app.js?v=37"></script>
+    <!-- キャッシュバスターをv-38に更新 -->
+    <script src="js/app.js?v=38"></script>
 </body>
 </html>

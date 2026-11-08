@@ -1,9 +1,9 @@
-const CACHE_NAME = 'v37';
+const CACHE_NAME = 'v38';
 const urlsToCache = [
   './',
   './index.html',
   './css/style.css',
-  './js/app.js?v=37',
+  './js/app.js?v=38',
   './manifest.json',
   './taskflow_icon.png'
 ];

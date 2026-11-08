@@ -134,6 +134,85 @@ document.addEventListener('DOMContentLoaded', async () => {
     fetchAppVersion();
 });
 
+// ★ 追加: HTMLから直接呼ばれるグローバル関数 ★
+window.handleManualUpdate = async function(btn) {
+    const originalText = btn.innerHTML;
+    btn.innerHTML = '🔄 更新を確認中...';
+    btn.disabled = true;
+    btn.style.opacity = '0.6';
+
+    try {
+        await fetchAppVersion();
+        if ('serviceWorker' in navigator) {
+            const reg = await navigator.serviceWorker.getRegistration();
+            if (reg) await reg.update();
+        }
+        await new Promise(resolve => setTimeout(resolve, 800));
+        alert("確認が完了しました。新しいバージョンがある場合は自動的にリロードされて反映されます。");
+    } catch (err) {
+        alert("確認中にエラーが発生しました。インターネット接続を確認してください。");
+    } finally {
+        btn.innerHTML = originalText;
+        btn.disabled = false;
+        btn.style.opacity = '1';
+    }
+};
+
+window.handleRestoreData = async function(inputElem) {
+    const file = inputElem.files[0];
+    if (!file) return;
+    
+    // UIを「読み込み中」に変更して視覚的に反応させる
+    const label = document.getElementById('label-restore');
+    const originalLabelText = label.innerText;
+    label.innerText = '⏳ 読み込み中...';
+    label.style.opacity = '0.7';
+
+    const reader = new FileReader();
+    reader.onload = async (evt) => {
+        try {
+            const tasks = JSON.parse(evt.target.result);
+            if (!Array.isArray(tasks)) {
+                alert('エラー: バックアップファイル（JSON）の形式が正しくありません。');
+                return;
+            }
+            // 少し待ってUIの変更を確実に反映
+            await new Promise(r => setTimeout(r, 100)); 
+            
+            if (confirm(`読み込んだ ${tasks.length} 件のデータで復元しますか？\n※現在のデータは完全に上書き消去されます。`)) {
+                const db = getDB();
+                const tx = db.transaction('tasks', 'readwrite');
+                tx.objectStore('tasks').clear();
+                
+                await new Promise((resolve, reject) => {
+                    tx.oncomplete = resolve;
+                    tx.onerror = reject;
+                });
+                
+                let count = 0;
+                for (const task of tasks) {
+                    await saveTask(task);
+                    count++;
+                }
+                
+                alert(`${count} 件のデータの復元が完了しました！`);
+                loadTasks();
+                if (document.getElementById('view-stats').classList.contains('active')) updateStats();
+            }
+        } catch (err) {
+            console.error("Restore Error:", err);
+            alert('ファイルの読み込みに失敗しました。ファイルが破損しているか、正しいJSON形式ではありません。');
+        } finally {
+            // リセット処理
+            inputElem.value = '';
+            label.innerText = originalLabelText;
+            label.style.opacity = '1';
+        }
+    };
+    reader.readAsText(file);
+};
+
+
 function setupUI() {
     document.getElementById('theme-toggle').addEventListener('click', () => {
         const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
@@ -209,7 +288,6 @@ function setupUI() {
     document.getElementById('filter-status').addEventListener('change', renderTasks);
     document.getElementById('sort-select').addEventListener('change', renderTasks);
     
-    // 設定画面のボタン
     const btnRequestNotify = document.getElementById('btn-request-notify');
     if (btnRequestNotify) {
         btnRequestNotify.addEventListener('click', async () => {
@@ -217,41 +295,6 @@ function setupUI() {
             let permission = Notification.permission;
             if (permission !== "granted" && permission !== "denied") permission = await Notification.requestPermission();
             alert(permission === "granted" ? "通知が許可されました！" : "通知設定を確認してください。");
-        });
-    }
-
-    // 更新確認ボタンの処理を追加
-    const btnUpdate = document.getElementById('btn-manual-update');
-    if (btnUpdate) {
-        btnUpdate.addEventListener('click', async () => {
-            const originalText = btnUpdate.innerHTML;
-            btnUpdate.innerHTML = '🔄 更新を確認中...';
-            btnUpdate.disabled = true;
-            btnUpdate.style.opacity = '0.6';
-
-            try {
-                // 強制的に最新のバージョン情報を取得
-                await fetchAppVersion();
-                
-                if ('serviceWorker' in navigator) {
-                    const reg = await navigator.serviceWorker.getRegistration();
-                    if (reg) {
-                        await reg.update(); // Service Workerの更新をチェック
-                    }
-                }
-                
-                // UXのために少しだけ待つ
-                await new Promise(resolve => setTimeout(resolve, 800));
-                
-                alert("確認が完了しました。新しいバージョンがある場合は自動的にリロードされて反映されます。");
-            } catch (err) {
-                alert("確認中にエラーが発生しました。インターネット接続を確認してください。");
-            } finally {
-                // ボタンの見た目を元に戻す
-                btnUpdate.innerHTML = originalText;
-                btnUpdate.disabled = false;
-                btnUpdate.style.opacity = '1';
-            }
         });
     }
 
@@ -264,60 +307,6 @@ function setupUI() {
             const url = URL.createObjectURL(blob);
             const a = document.createElement('a'); a.href = url; a.download = `taskflow_backup.json`;
             document.body.appendChild(a); a.click(); document.body.removeChild(a);
-        });
-    }
-
-    // ★ 復元(JSON読込)の処理を確実に修正 ★
-    const inputRestore = document.getElementById('input-restore');
-    if (inputRestore) {
-        inputRestore.addEventListener('change', async (e) => {
-            const file = e.target.files[0];
-            if (!file) return;
-
-            const reader = new FileReader();
-            reader.onload = async (evt) => {
-                try {
-                    const tasks = JSON.parse(evt.target.result);
-                    
-                    // 単純な配列かどうかのチェック
-                    if (!Array.isArray(tasks)) {
-                        alert('エラー: バックアップファイル（JSON）の形式が正しくありません。');
-                        return;
-                    }
-
-                    if (confirm(`読み込んだ ${tasks.length} 件のデータで復元しますか？\n※現在のデータは完全に上書き消去されます。`)) {
-                        const db = getDB();
-                        const tx = db.transaction('tasks', 'readwrite');
-                        tx.objectStore('tasks').clear();
-                        
-                        // 削除が完了するのを待つ
-                        await new Promise((resolve, reject) => {
-                            tx.oncomplete = resolve;
-                            tx.onerror = reject;
-                        });
-                        
-                        // ひとつずつ保存し直す
-                        let count = 0;
-                        for (const task of tasks) {
-                            await saveTask(task);
-                            count++;
-                        }
-                        
-                        alert(`${count} 件のデータの復元が完了しました！`);
-                        loadTasks();
-                        if (document.getElementById('view-stats').classList.contains('active')) updateStats();
-                    }
-                } catch (err) {
-                    console.error("Restore Error:", err);
-                    alert('ファイルの読み込みに失敗しました。ファイルが破損しているか、正しいJSON形式ではありません。');
-                } finally {
-                    // 同じファイルを再度選べるようにリセットする
-                    e.target.value = '';
-                }
-            };
-            
-            // ファイルの読み取りを開始
-            reader.readAsText(file);
         });
     }
 
@@ -334,6 +323,8 @@ function setupUI() {
     }
 }
 
+// ... 以下、既存のUI関数（openModal, renderTasks等）はそのまま省略せず出力する想定ですが、
+// ここでは完全な動作を保証するためにすべて含めます。
 function openModal(task = null, defaultDateStr = null) {
     document.getElementById('modal-title').innerText = task ? '詳細を編集' : '新しいタスク';
     document.getElementById('task-id').value = task ? task.id : '';
