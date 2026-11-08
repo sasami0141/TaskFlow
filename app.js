@@ -319,12 +319,15 @@ function setupUI() {
     document.getElementById('sort-select').addEventListener('change', renderTasks);
     document.getElementById('btn-manual-update').addEventListener('click', checkForUpdateManual);
 
-    // ==========================================
-    // 設定画面のイベントリスナー追加（確実な修正）
-    // ==========================================
+    // =========================================================================
+    // 設定画面の機能（通知許可・バックアップ・復元・全消去）のイベント登録
+    // =========================================================================
+    
+    // 通知ボタン
     const btnRequestNotify = document.getElementById('btn-request-notify');
     if (btnRequestNotify) {
         btnRequestNotify.addEventListener('click', async () => {
+            console.log("[設定] 通知ボタンクリック");
             if (!("Notification" in window)) {
                 alert("このブラウザ・端末は通知機能をサポートしていません。iOSの場合は「ホーム画面に追加」から起動してください。");
                 return;
@@ -338,34 +341,38 @@ function setupUI() {
                     if (permission === "granted") {
                         alert("通知が許可されました！");
                     } else {
-                        alert("通知が許可されませんでした。");
+                        alert("通知の許可が拒否されました。");
                     }
                 } else {
                     alert("通知がブロックされています。端末の設定から許可してください。");
                 }
             } catch (e) {
                 alert("通知設定の呼び出しに失敗しました。");
+                console.error(e);
             }
         });
+    } else {
+        console.warn("[設定] btn-request-notify が見つかりません");
     }
 
+    // バックアップボタン
     const btnBackup = document.getElementById('btn-backup');
     if (btnBackup) {
         btnBackup.addEventListener('click', async () => {
+            console.log("[設定] バックアップボタンクリック");
             try {
                 const tasks = await getAllTasks();
-                // Blobを用いた安定したファイル生成とダウンロード（iOS対応）
+                if (tasks.length === 0) {
+                    alert("バックアップするタスクデータがありません。");
+                    return;
+                }
                 const blob = new Blob([JSON.stringify(tasks, null, 2)], { type: 'application/json' });
                 const url = URL.createObjectURL(blob);
-                
                 const a = document.createElement('a');
                 a.href = url;
                 a.download = `taskflow_backup_${new Date().toISOString().split('T')[0]}.json`;
-                
                 document.body.appendChild(a);
                 a.click();
-                
-                // クリーンアップ
                 setTimeout(() => {
                     document.body.removeChild(a);
                     URL.revokeObjectURL(url);
@@ -375,11 +382,15 @@ function setupUI() {
                 console.error(e);
             }
         });
+    } else {
+        console.warn("[設定] btn-backup が見つかりません");
     }
 
+    // 復元ボタン（input）
     const inputRestore = document.getElementById('input-restore');
     if (inputRestore) {
         inputRestore.addEventListener('change', async (e) => {
+            console.log("[設定] データ復元ファイル選択");
             const file = e.target.files[0];
             if (!file) return;
             const reader = new FileReader();
@@ -405,15 +416,19 @@ function setupUI() {
                 } catch (err) {
                     alert('ファイルの読み込みに失敗しました。正しいJSONファイルを選択してください。');
                 }
-                e.target.value = '';
+                e.target.value = ''; // リセット
             };
             reader.readAsText(file);
         });
+    } else {
+        console.warn("[設定] input-restore が見つかりません");
     }
 
+    // 全データ消去ボタン
     const btnClearAll = document.getElementById('btn-clear-all');
     if (btnClearAll) {
         btnClearAll.addEventListener('click', async () => {
+            console.log("[設定] 全データ消去クリック");
             if (confirm('⚠️ 本当にすべてのデータを消去しますか？この操作は取り消せません。')) {
                 try {
                     const db = getDB();
@@ -429,6 +444,8 @@ function setupUI() {
                 }
             }
         });
+    } else {
+        console.warn("[設定] btn-clear-all が見つかりません");
     }
 }
 
