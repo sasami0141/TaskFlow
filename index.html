@@ -101,7 +101,6 @@
                 <h3 style="margin-top: 0; font-size: 14px; color: var(--text-secondary);">アプリ情報</h3>
                 <div style="margin-bottom: 20px;">
                     <p id="app-version-info" style="font-size:12px; font-weight:bold; margin-bottom: 8px;">バージョンを読み込み中...</p>
-                    <!-- 直接関数を呼び出して確実に発動させる -->
                     <button class="btn-outline full-width" style="transition: all 0.2s;" onclick="handleManualUpdate(this)">🔄 手動で更新を確認</button>
                     <p style="font-size:11px; color:var(--text-secondary); margin-top:8px;">※更新が反映されない場合はホーム画面から一度削除して再度追加してください。</p>
                 </div>
@@ -111,7 +110,6 @@
                 <button id="btn-backup" class="btn-primary full-width">データのバックアップ (JSON)</button>
                 <div class="divider"></div>
                 
-                <!-- 直接onchangeを指定して確実に発動させる -->
                 <label for="input-restore" id="label-restore" class="file-label btn-secondary full-width" style="transition: all 0.2s;">データの復元 (JSON読込)</label>
                 <input type="file" id="input-restore" accept=".json" style="display:none;" onchange="handleRestoreData(this)">
                 
@@ -150,7 +148,7 @@
         <button class="nav-item" data-target="view-settings"><div class="nav-icon">⚙️</div><div class="nav-label">設定</div></button>
     </nav>
 
-    <!-- キャッシュバスターをv-38に更新 -->
-    <script src="js/app.js?v=38"></script>
+    <!-- ★ ファイル名を app_core.js に変更し、古いファイルの読み込みを完全に遮断 ★ -->
+    <script src="js/app_core.js?v=39"></script>
 </body>
 </html>
