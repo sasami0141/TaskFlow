@@ -286,8 +286,14 @@ function setupUI() {
         }
     });
     
-    document.getElementById('btn-cancel').addEventListener('click', () => modal.classList.add('hidden'));
-    document.getElementById('modal-overlay').addEventListener('click', () => modal.classList.add('hidden'));
+    document.getElementById('btn-cancel').addEventListener('click', () => {
+        modal.classList.add('hidden');
+        modal.style.display = 'none';
+    });
+    document.getElementById('modal-overlay').addEventListener('click', () => {
+        modal.classList.add('hidden');
+        modal.style.display = 'none';
+    });
 
     // サブタスク追加
     document.getElementById('btn-add-subtask').addEventListener('click', () => {
@@ -366,6 +372,7 @@ function setupUI() {
         await saveTask(task);
         
         modal.classList.add('hidden');
+        modal.style.display = 'none';
         loadTasks();
         
         if (document.getElementById('view-calendar').classList.contains('active')) {
@@ -512,6 +519,7 @@ function openModal(task = null, defaultDateStr = null) {
     
     const modal = document.getElementById('task-modal');
     modal.classList.remove('hidden');
+    modal.style.display = 'flex'; // 追加: インラインスタイルでも表示
 }
 
 async function loadTasks() {

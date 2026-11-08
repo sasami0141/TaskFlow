@@ -98,10 +98,10 @@
            モーダル（タスク追加）のヘッダー・フッター完全固定化 
            ========================================= */
         .modal.hidden {
-            display: none !important;
+            display: none !important; /* 追加: hidden時は絶対に消す */
         }
         .modal:not(.hidden) {
-            display: flex !important;
+            display: flex !important; /* 追加: hiddenじゃない時だけflex */
         }
         .modal {
             align-items: center !important;
@@ -112,7 +112,7 @@
         .modal-content {
             display: flex !important;
             flex-direction: column !important;
-            max-height: 85vh !important; /* 画面に収める */
+            max-height: 85vh !important;
             padding: 0 !important;
             overflow: hidden !important;
             background: var(--card-bg) !important;
@@ -125,7 +125,7 @@
             padding: 16px 20px !important;
             border-bottom: 1px solid var(--border-color) !important;
             background: var(--card-bg) !important;
-            flex-shrink: 0 !important; /* 縮小させない（固定） */
+            flex-shrink: 0 !important;
             display: flex !important;
             justify-content: space-between !important;
             align-items: center !important;
@@ -133,15 +133,15 @@
         .modal-header h2 { margin: 0 !important; font-size: 18px !important; }
         .modal-body {
             padding: 16px 20px !important;
-            overflow-y: auto !important; /* 中央だけスクロール */
+            overflow-y: auto !important;
             flex: 1 1 auto !important;
-            -webkit-overflow-scrolling: touch !important; /* iOSスムーズスクロール */
+            -webkit-overflow-scrolling: touch !important;
         }
         .modal-actions {
             padding: 16px 20px !important;
             border-top: 1px solid var(--border-color) !important;
             background: var(--card-bg) !important;
-            flex-shrink: 0 !important; /* 縮小させない（固定） */
+            flex-shrink: 0 !important;
         }
 
         .multi-item { display: flex; flex-direction: column; gap: 8px; background: var(--bg-color); padding: 12px; border-radius: 8px; margin-bottom: 12px; position: relative; }
@@ -266,7 +266,7 @@
     <button id="fab-add" class="fab">+</button>
 
     <!-- モーダル（スクロール対応） -->
-    <div id="task-modal" class="modal hidden">
+    <div id="task-modal" class="modal hidden" style="display: none;">
         <div class="modal-overlay" id="modal-overlay"></div>
         <div class="modal-content">
             <!-- ヘッダー（固定） -->
