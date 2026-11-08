@@ -452,24 +452,33 @@ function setupUI() {
     }
 }
 
+// 強化版スワイプ削除ロジック（タッチとマウス両対応）
 function applySwipeToDelete(wrapperEl, taskItemEl, task) {
     let startX = 0, currentX = 0, isDragging = false, lastMoveX = 0;
 
-    taskItemEl.addEventListener('pointerdown', (e) => {
+    const startDrag = (e) => {
         if (e.target.closest('input') || e.target.closest('button') || e.target.closest('a') || e.target.closest('select')) return;
-        if (e.pointerType === 'mouse' && e.button !== 0) return;
+        if (e.type === 'mousedown' && e.button !== 0) return;
         
-        startX = e.clientX;
+        startX = e.type.includes('touch') ? e.touches[0].clientX : e.clientX;
         currentX = 0;
         lastMoveX = 0;
         isDragging = true;
         taskItemEl.style.transition = 'none';
-        taskItemEl.setPointerCapture(e.pointerId);
-    });
+    };
 
-    taskItemEl.addEventListener('pointermove', (e) => {
+    const moveDrag = (e) => {
         if (!isDragging) return;
-        currentX = e.clientX - startX;
+        const clientX = e.type.includes('touch') ? e.touches[0].clientX : e.clientX;
+        currentX = clientX - startX;
+        
+        // 縦方向のスクロールを優先させたい場合は横スワイプ判定を厳密にする必要があるが、
+        // 今回はtouch-action: pan-y でブラウザに任せている。
+        if (Math.abs(currentX) > 10 && e.cancelable) {
+             // 横スワイプが明確な場合はデフォルト動作(スクロール)を止める
+            // e.preventDefault();
+        }
+
         lastMoveX = currentX;
         
         taskItemEl.style.transform = `translateX(${currentX}px)`;
@@ -481,12 +490,11 @@ function applySwipeToDelete(wrapperEl, taskItemEl, task) {
             swipeBg.querySelector('.right-action').style.opacity = Math.min(Math.abs(currentX) / 60, 1);
             swipeBg.querySelector('.left-action').style.opacity = 0;
         }
-    });
+    };
 
     const endDrag = async (e) => {
         if (!isDragging) return;
         isDragging = false;
-        taskItemEl.releasePointerCapture(e.pointerId);
         taskItemEl.style.transition = 'transform 0.2s ease-out';
         
         if (Math.abs(currentX) > 80) {
@@ -506,15 +514,27 @@ function applySwipeToDelete(wrapperEl, taskItemEl, task) {
         }
     };
 
-    taskItemEl.addEventListener('pointerup', endDrag);
-    taskItemEl.addEventListener('pointercancel', endDrag);
+    // タッチイベント
+    taskItemEl.addEventListener('touchstart', startDrag, {passive: true});
+    taskItemEl.addEventListener('touchmove', moveDrag, {passive: true});
+    taskItemEl.addEventListener('touchend', endDrag);
+    taskItemEl.addEventListener('touchcancel', endDrag);
 
+    // マウスイベント
+    taskItemEl.addEventListener('mousedown', startDrag);
+    window.addEventListener('mousemove', moveDrag);
+    window.addEventListener('mouseup', endDrag);
+
+    // タップで詳細を開く
     taskItemEl.addEventListener('click', (e) => {
+        // 大きくスワイプした後のクリック（誤爆）は無視
         if (Math.abs(lastMoveX) > 10) {
             e.preventDefault();
             return;
         }
+        // チェックボックスや入力欄などを触った場合はモーダルを開かない
         if (e.target.closest('input') || e.target.closest('button') || e.target.closest('a') || e.target.closest('img')) return;
+        
         openModal(task);
     });
 }
@@ -722,6 +742,7 @@ function renderTasks() {
             const deadlineValue = task.deadline || '';
             let dateHtml = (startValue && deadlineValue) ? `📅 <span style="font-size:12px; color:var(--text-secondary); margin-right:4px;">${startValue.replace('T', ' ')} 〜</span> <input type="datetime-local" class="inline-edit-date" value="${deadlineValue}">` : `📅 <input type="datetime-local" class="inline-edit-date" value="${deadlineValue}">`;
 
+            // 詳細・削除ボタンを廃止し、スワイプ用の背景とコンテンツのみにする
             li.innerHTML = `
                 <div class="task-swipe-bg">
                     <span class="left-action">🗑️ 削除</span>
@@ -762,6 +783,7 @@ function renderTasks() {
                 } else { await toggleTaskStatus(task); loadTasks(); }
             });
 
+            // スワイプイベント登録
             applySwipeToDelete(li, taskItemEl, task);
             list.appendChild(li);
         });

@@ -1,4 +1,4 @@
-const CACHE_NAME = 'taskflow-cache-v32';
+const CACHE_NAME = 'taskflow-cache-v33';
 const urlsToCache = [
   './',
   './index.html',
@@ -13,6 +13,7 @@ self.addEventListener('install', event => {
     caches.open(CACHE_NAME)
       .then(cache => cache.addAll(urlsToCache))
   );
+  self.skipWaiting(); // v33: 強制的に新しいバージョンをアクティブにする
 });
 
 self.addEventListener('message', event => {
