@@ -22,6 +22,7 @@ const DB_NAME = 'TaskFlowDB';
 const DB_VERSION = 1;
 const GAS_SYNC_URL_KEY = 'taskflowGasSyncUrl';
 const GAS_SYNC_API_KEY = 'taskflowGasApiKey';
+const GAS_NOTIFICATION_EMAIL_KEY = 'taskflowGasNotificationEmail';
 let dbInstance = null;
 let taskSyncTimer = null;
 let taskSyncInProgress = false;
@@ -59,6 +60,15 @@ function getGasSyncApiKey() {
     } catch (error) {
         console.warn('Unable to read the GAS API key from local storage.', error);
         updateGasSyncStatus('APIキーを読み込めません。ブラウザーのストレージ設定を確認してください。');
+        return '';
+    }
+}
+function getGasNotificationEmail() {
+    try {
+        return (localStorage.getItem(GAS_NOTIFICATION_EMAIL_KEY) || '').trim();
+    } catch (error) {
+        console.warn('Unable to read the GAS notification email from local storage.', error);
+        updateGasSyncStatus('通知先メールアドレスを読み込めません。ブラウザーのストレージ設定を確認してください。');
         return '';
     }
 }
@@ -107,7 +117,7 @@ async function syncTasksToGas() {
             method: 'POST',
             mode: 'no-cors',
             headers: { 'Content-Type': 'text/plain;charset=UTF-8' },
-            body: JSON.stringify({ apiKey, tasks })
+            body: JSON.stringify({ apiKey, tasks, notificationEmail: getGasNotificationEmail() })
         });
         updateGasSyncStatus('同期リクエストを送信しました。受信結果はGAS側で確認してください。');
     } catch (error) {
@@ -333,10 +343,13 @@ function setupUI() {
 
     const gasUrlInput = document.getElementById('gas-sync-url');
     const gasApiKeyInput = document.getElementById('gas-sync-api-key');
+    const gasNotificationEmailInput = document.getElementById('gas-notification-email');
     const savedGasUrl = getGasSyncUrl();
     const savedGasApiKey = getGasSyncApiKey();
+    const savedNotificationEmail = getGasNotificationEmail();
     gasUrlInput.value = savedGasUrl;
     gasApiKeyInput.value = savedGasApiKey;
+    gasNotificationEmailInput.value = savedNotificationEmail;
     if (savedGasUrl && !isValidGasSyncUrl(savedGasUrl)) updateGasSyncStatus('保存済みのGAS URLが無効です。設定を確認してください。');
     else if (savedGasUrl && savedGasApiKey) updateGasSyncStatus('設定済み。タスクの追加・更新・削除時にバックグラウンド送信します。');
     else updateGasSyncStatus('URLとAPIキーの両方を設定すると同期します。未設定の間、タスクは外部送信されません。');
@@ -344,17 +357,25 @@ function setupUI() {
     document.getElementById('btn-save-gas-url').addEventListener('click', () => {
         const value = gasUrlInput.value.trim();
         const apiKey = gasApiKeyInput.value.trim();
+        const notificationEmail = gasNotificationEmailInput.value.trim();
+        gasNotificationEmailInput.value = notificationEmail;
         if (value && !isValidGasSyncUrl(value)) {
             updateGasSyncStatus('https://script.google.com/macros/s/.../exec のURLを入力してください。');
             return alert('有効なGAS WebアプリURL（script.google.com/macros/s/.../exec）を入力してください。');
+        }
+        if (notificationEmail && !gasNotificationEmailInput.checkValidity()) {
+            updateGasSyncStatus('有効な通知先メールアドレスを入力してください。');
+            return alert('有効な通知先メールアドレスを入力してください。');
         }
         try {
             if (value) localStorage.setItem(GAS_SYNC_URL_KEY, value);
             else localStorage.removeItem(GAS_SYNC_URL_KEY);
             if (apiKey) localStorage.setItem(GAS_SYNC_API_KEY, apiKey);
             else localStorage.removeItem(GAS_SYNC_API_KEY);
+            if (notificationEmail) localStorage.setItem(GAS_NOTIFICATION_EMAIL_KEY, notificationEmail);
+            else localStorage.removeItem(GAS_NOTIFICATION_EMAIL_KEY);
             if (!value || !apiKey) {
-                updateGasSyncStatus('URLとAPIキーの両方を設定すると同期します。未設定の間、タスクは外部送信されません。');
+                updateGasSyncStatus('メールアドレスを保存しました。GAS URLとAPIキーを設定すると同期します。');
                 return;
             }
             updateGasSyncStatus('同期設定を保存しました。最新のタスクをバックグラウンド送信します。');
