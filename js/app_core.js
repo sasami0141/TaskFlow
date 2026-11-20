@@ -77,7 +77,7 @@ function isValidGasSyncUrl(value) {
         const url = new URL(value);
         return url.protocol === 'https:' &&
             url.hostname === 'script.google.com' &&
-            /^\/macros\/s\/[^/]+\/exec\/?$/.test(url.pathname);
+            /^\/macros\/(?:u\/\d+\/)?s\/[^/]+\/exec\/?$/.test(url.pathname);
     } catch (error) {
         return false;
     }
@@ -360,8 +360,8 @@ function setupUI() {
         const notificationEmail = gasNotificationEmailInput.value.trim();
         gasNotificationEmailInput.value = notificationEmail;
         if (value && !isValidGasSyncUrl(value)) {
-            updateGasSyncStatus('https://script.google.com/macros/s/.../exec のURLを入力してください。');
-            return alert('有効なGAS WebアプリURL（script.google.com/macros/s/.../exec）を入力してください。');
+            updateGasSyncStatus('GAS Webアプリの有効な /exec URLを入力してください。');
+            return alert('有効なGAS Webアプリの /exec URL（script.google.com/macros/.../exec）を入力してください。');
         }
         if (notificationEmail && !gasNotificationEmailInput.checkValidity()) {
             updateGasSyncStatus('有効な通知先メールアドレスを入力してください。');

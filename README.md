@@ -13,7 +13,7 @@
 
 ### TaskFlow側の設定
 
-設定画面の「Google Apps Script 同期」に、GAS WebアプリURLとAPIキーの両方を入力して保存します。URLは `https://script.google.com/macros/s/DEPLOYMENT_ID/exec` 形式です。APIキーはGAS側の `TASKFLOW_API_KEY` スクリプトプロパティと同じ値にします。TaskFlowではURLとAPIキーを別々に保存し、どちらかが未設定なら送信しません。POST本文は `{apiKey, tasks, notificationEmail}` です。`notificationEmail` は任意のメールアドレス、または設定解除を表す空文字列です。通知先はブラウザー内に保存され、URLとAPIキーが設定されている場合に最新タスク一覧とともにGASへ同期されます。
+設定画面の「Google Apps Script 同期」に、GAS WebアプリURLとAPIキーの両方を入力して保存します。通常のURLは `https://script.google.com/macros/s/DEPLOYMENT_ID/exec` 形式です。`/macros/u/0/s/DEPLOYMENT_ID/exec` のようなアカウント選択パスも利用できます。APIキーはGAS側の `TASKFLOW_API_KEY` スクリプトプロパティと同じ値にします。TaskFlowではURLとAPIキーを別々に保存し、どちらかが未設定なら送信しません。POST本文は `{apiKey, tasks, notificationEmail}` です。`notificationEmail` は任意のメールアドレス、または設定解除を表す空文字列です。通知先はブラウザー内に保存され、URLとAPIキーが設定されている場合に最新タスク一覧とともにGASへ同期されます。
 
 ### GASの設定・デプロイ
 

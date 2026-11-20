@@ -3,7 +3,7 @@ const urlsToCache = [
   './',
   './index.html',
   './css/style.css',
-  './js/app_core.js?v=42',
+  './js/app_core.js?v=43',
   './manifest.json',
   './taskflow_icon.png'
 ];
