@@ -2,6 +2,7 @@ const TASKFLOW_TIME_ZONE = 'Asia/Tokyo';
 const TASKFLOW_TASKS_SHEET = 'tasks';
 const TASKFLOW_NOTIFICATION_LOG_SHEET = '_notification_log';
 const TASKFLOW_API_KEY_PROPERTY = 'TASKFLOW_API_KEY';
+const TASKFLOW_NOTIFICATION_EMAIL_PROPERTY = 'TASKFLOW_NOTIFICATION_EMAIL';
 const TASKFLOW_TASK_HEADERS = [
   'id', 'title', 'startDate', 'deadline', 'deadlineAt', 'priority', 'recurring',
   'memo', 'completed', 'notificationMode', 'notificationAt', 'extraDates',
@@ -28,14 +29,51 @@ function doPost(e) {
   })) {
     return taskflowJsonResponse({ ok: false, error: 'Invalid tasks array.' });
   }
+  let notificationEmail;
+  if (Object.prototype.hasOwnProperty.call(request, 'notificationEmail')) {
+    if (typeof request.notificationEmail !== 'string') {
+      return taskflowJsonResponse({ ok: false, error: 'Invalid notification email.' });
+    }
+    notificationEmail = request.notificationEmail.trim();
+    if (notificationEmail && !taskflowIsValidNotificationEmail(notificationEmail)) {
+      return taskflowJsonResponse({ ok: false, error: 'Invalid notification email.' });
+    }
+  }
 
   try {
     writeTaskSnapshot(request.tasks);
+    if (notificationEmail !== undefined) taskflowSaveNotificationEmail(notificationEmail);
     return taskflowJsonResponse({ ok: true, taskCount: request.tasks.length });
   } catch (error) {
-    console.error('TaskFlow snapshot write failed: ' + error.message);
-    throw new Error('TaskFlow snapshot could not be saved.');
+    console.error('TaskFlow sync failed: ' + error.message);
+    throw new Error('TaskFlow sync could not be saved.');
   }
+}
+
+function taskflowIsValidNotificationEmail(value) {
+  return typeof value === 'string' && value.length <= 254 &&
+    /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
+}
+
+function taskflowSaveNotificationEmail(email) {
+  const properties = PropertiesService.getScriptProperties();
+  if (email) properties.setProperty(TASKFLOW_NOTIFICATION_EMAIL_PROPERTY, email);
+  else properties.deleteProperty(TASKFLOW_NOTIFICATION_EMAIL_PROPERTY);
+}
+
+function taskflowGetNotificationRecipient() {
+  const email = PropertiesService.getScriptProperties()
+    .getProperty(TASKFLOW_NOTIFICATION_EMAIL_PROPERTY);
+  if (email) {
+    const recipient = email.trim();
+    if (!taskflowIsValidNotificationEmail(recipient)) {
+      throw new Error('The configured notification email is invalid.');
+    }
+    return recipient;
+  }
+  const fallback = Session.getEffectiveUser().getEmail();
+  if (!fallback) throw new Error('The trigger execution account email is unavailable.');
+  return fallback;
 }
 
 function taskflowJsonResponse(value) {
@@ -135,8 +173,7 @@ function scanTaskNotifications() {
     });
     if (due.length === 0) return;
 
-    const recipient = Session.getEffectiveUser().getEmail();
-    if (!recipient) throw new Error('The trigger execution account email is unavailable.');
+    const recipient = taskflowGetNotificationRecipient();
     const lines = due.map(function(notice) {
       const deadlineText = notice.deadline
         ? '（期限: ' + Utilities.formatDate(notice.deadline, TASKFLOW_TIME_ZONE, 'yyyy/MM/dd HH:mm') + '）'
