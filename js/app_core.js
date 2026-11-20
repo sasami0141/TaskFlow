@@ -20,7 +20,12 @@ async function fetchUrlMetadata(url) {
 // --- Database Module ---
 const DB_NAME = 'TaskFlowDB';
 const DB_VERSION = 1;
+const GAS_SYNC_URL_KEY = 'taskflowGasSyncUrl';
+const GAS_SYNC_API_KEY = 'taskflowGasApiKey';
 let dbInstance = null;
+let taskSyncTimer = null;
+let taskSyncInProgress = false;
+let taskSyncPending = false;
 
 function initDB() {
     return new Promise((resolve, reject) => {
@@ -39,6 +44,83 @@ function initDB() {
 }
 function getDB() { return dbInstance; }
 function generateId() { return Date.now().toString() + '-' + Math.random().toString(36).substr(2, 9); }
+function getGasSyncUrl() {
+    try {
+        return localStorage.getItem(GAS_SYNC_URL_KEY) || '';
+    } catch (error) {
+        console.warn('Unable to read the GAS sync URL from local storage.', error);
+        updateGasSyncStatus('同期先を読み込めません。ブラウザーのストレージ設定を確認してください。');
+        return '';
+    }
+}
+function getGasSyncApiKey() {
+    try {
+        return (localStorage.getItem(GAS_SYNC_API_KEY) || '').trim();
+    } catch (error) {
+        console.warn('Unable to read the GAS API key from local storage.', error);
+        updateGasSyncStatus('APIキーを読み込めません。ブラウザーのストレージ設定を確認してください。');
+        return '';
+    }
+}
+function isValidGasSyncUrl(value) {
+    try {
+        const url = new URL(value);
+        return url.protocol === 'https:' &&
+            url.hostname === 'script.google.com' &&
+            /^\/macros\/s\/[^/]+\/exec\/?$/.test(url.pathname);
+    } catch (error) {
+        return false;
+    }
+}
+function updateGasSyncStatus(message) {
+    const status = document.getElementById('gas-sync-status');
+    if (status) status.textContent = message;
+}
+function scheduleTaskSync() {
+    const url = getGasSyncUrl();
+    const apiKey = getGasSyncApiKey();
+    if (!url || !apiKey) return;
+    if (!isValidGasSyncUrl(url)) {
+        updateGasSyncStatus('保存済みのGAS URLが無効です。設定を確認してください。');
+        return;
+    }
+    clearTimeout(taskSyncTimer);
+    taskSyncTimer = setTimeout(() => {
+        taskSyncTimer = null;
+        syncTasksToGas();
+    }, 300);
+}
+async function syncTasksToGas() {
+    const url = getGasSyncUrl();
+    const apiKey = getGasSyncApiKey();
+    if (!url || !apiKey || !isValidGasSyncUrl(url)) return;
+    if (taskSyncInProgress) {
+        taskSyncPending = true;
+        return;
+    }
+
+    taskSyncInProgress = true;
+    updateGasSyncStatus('最新のタスクを同期中...');
+    try {
+        const tasks = await getAllTasks();
+        await fetch(url, {
+            method: 'POST',
+            mode: 'no-cors',
+            headers: { 'Content-Type': 'text/plain;charset=UTF-8' },
+            body: JSON.stringify({ apiKey, tasks })
+        });
+        updateGasSyncStatus('同期リクエストを送信しました。受信結果はGAS側で確認してください。');
+    } catch (error) {
+        console.warn('GAS task sync failed; local tasks remain saved.', error);
+        updateGasSyncStatus('同期に失敗しました。ローカルデータは保存済みです。接続復帰後に再試行します。');
+    } finally {
+        taskSyncInProgress = false;
+        if (taskSyncPending) {
+            taskSyncPending = false;
+            scheduleTaskSync();
+        }
+    }
+}
 function calculateDate(baseDateStr, type, amount) {
     const d = baseDateStr ? new Date(baseDateStr) : new Date();
     if (type === 'days') d.setDate(d.getDate() + amount);
@@ -59,23 +141,53 @@ function saveTask(task) {
     return new Promise((resolve, reject) => {
         const tx = db.transaction('tasks', 'readwrite');
         tx.objectStore('tasks').put(task);
-        tx.oncomplete = () => resolve(task);
+        tx.oncomplete = () => {
+            resolve(task);
+            scheduleTaskSync();
+        };
+        tx.onerror = () => reject(tx.error || new Error('Failed to save task.'));
+        tx.onabort = () => reject(tx.error || new Error('Task save was aborted.'));
     });
 }
 function getAllTasks() {
     const db = getDB();
-    return new Promise((resolve) => {
+    return new Promise((resolve, reject) => {
         const tx = db.transaction('tasks', 'readonly');
         const req = tx.objectStore('tasks').getAll();
         req.onsuccess = () => resolve(req.result);
+        req.onerror = () => reject(req.error || new Error('Failed to load tasks.'));
     });
 }
 function deleteTask(id) {
     const db = getDB();
-    return new Promise((resolve) => {
+    return new Promise((resolve, reject) => {
         const tx = db.transaction('tasks', 'readwrite');
         tx.objectStore('tasks').delete(id);
-        tx.oncomplete = () => resolve();
+        tx.oncomplete = () => {
+            resolve();
+            scheduleTaskSync();
+        };
+        tx.onerror = () => reject(tx.error || new Error('Failed to delete task.'));
+        tx.onabort = () => reject(tx.error || new Error('Task deletion was aborted.'));
+    });
+}
+function replaceAllTasks(tasks) {
+    const db = getDB();
+    return new Promise((resolve, reject) => {
+        const tx = db.transaction('tasks', 'readwrite');
+        const store = tx.objectStore('tasks');
+        store.clear();
+        for (const task of tasks) {
+            if (!task.id) task.id = generateId();
+            if (!task.createdAt) task.createdAt = new Date().toISOString();
+            store.put(task);
+        }
+        tx.oncomplete = () => {
+            resolve();
+            scheduleTaskSync();
+        };
+        tx.onerror = () => reject(tx.error || new Error('Failed to restore tasks.'));
+        tx.onabort = () => reject(tx.error || new Error('Task restore was aborted.'));
     });
 }
 async function toggleTaskStatus(task) {
@@ -100,7 +212,7 @@ function setupServiceWorker() {
                     }
                 });
             });
-        });
+        }).catch(error => console.warn('Service worker registration failed.', error));
         let refreshing = false;
         navigator.serviceWorker.addEventListener('controllerchange', () => {
             if (!refreshing) { refreshing = true; window.location.reload(); }
@@ -108,13 +220,15 @@ function setupServiceWorker() {
     }
 }
 function fetchAppVersion() {
-    return fetch('sw.js', {cache: "no-store"}).then(res => res.text()).then(text => {
+    return fetch('sw.js', {cache: 'no-store'}).then(res => {
+        if (!res.ok) throw new Error(`Version check failed: ${res.status}`);
+        return res.text();
+    }).then(text => {
         const match = text.match(/CACHE_NAME\s*=\s*['"]([^'"]+)['"]/);
-        if (match && match[1]) {
-            let verStr = match[1].replace('v-', 'v-'); // フォーマット統一
-            document.getElementById('app-version-info').innerText = `現在のバージョン: ${verStr}`;
-        }
-    }).catch(() => {});
+        if (!match || !/^v-\d+$/.test(match[1])) throw new Error('The app version could not be read.');
+        document.getElementById('app-version-info').innerText = `現在のバージョン: ${match[1]}`;
+        return match[1];
+    });
 }
 
 // --- Application Logic ---
@@ -128,7 +242,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     setupUI();
     await loadTasks();
     setupServiceWorker();
-    fetchAppVersion();
+    fetchAppVersion().catch(error => console.warn('Unable to read the app version.', error));
+    if (getGasSyncUrl()) scheduleTaskSync();
+    window.addEventListener('online', scheduleTaskSync);
 });
 
 // 手動更新チェック
@@ -139,15 +255,14 @@ window.handleManualUpdate = async function(btn) {
     btn.style.opacity = '0.6';
 
     try {
-        await fetchAppVersion();
-        if ('serviceWorker' in navigator) {
-            const reg = await navigator.serviceWorker.getRegistration();
-            if (reg) await reg.update();
-        }
-        await new Promise(resolve => setTimeout(resolve, 800));
-        alert("最新の状態を確認しました。新しいバージョンがある場合は自動的にリロードされます。");
+        const version = await fetchAppVersion();
+        if (!('serviceWorker' in navigator)) throw new Error('Service workers are not supported.');
+        const reg = await navigator.serviceWorker.getRegistration() || await navigator.serviceWorker.register('./sw.js');
+        await reg.update();
+        alert(`バージョン ${version} を確認しました。新しいバージョンがある場合は自動的にリロードされます。`);
     } catch (err) {
-        alert("確認中にエラーが発生しました。インターネット接続を確認してください。");
+        console.warn('Manual update check failed.', err);
+        alert('更新の確認に失敗しました。インターネット接続を確認してください。');
     } finally {
         btn.innerHTML = originalText;
         btn.disabled = false;
@@ -162,61 +277,79 @@ window.handleRestoreData = async function(inputElem) {
     const file = inputElem.files[0];
     const label = document.getElementById('label-restore');
     const originalLabelText = label.innerText;
-    
     label.innerText = '⏳ 読み込み中...';
     label.style.opacity = '0.7';
-
-    const reader = new FileReader();
-    reader.onload = async (evt) => {
-        try {
-            const tasks = JSON.parse(evt.target.result);
-            if (!Array.isArray(tasks)) {
-                alert('エラー: バックアップファイル（JSON）の形式が正しくありません。');
-                return;
-            }
-            
-            // UIを一旦反映させるための少しの待ち時間
-            await new Promise(r => setTimeout(r, 100)); 
-            
-            if (confirm(`読み込んだ ${tasks.length} 件のデータで復元しますか？\n※現在のデータは完全に上書き消去されます。`)) {
-                const db = getDB();
-                const tx = db.transaction('tasks', 'readwrite');
-                tx.objectStore('tasks').clear();
-                
-                await new Promise((resolve, reject) => {
-                    tx.oncomplete = resolve;
-                    tx.onerror = reject;
-                });
-                
-                let count = 0;
-                for (const task of tasks) {
-                    await saveTask(task);
-                    count++;
-                }
-                
-                alert(`${count} 件のデータの復元が完了しました！`);
-                loadTasks();
-                if (document.getElementById('view-stats').classList.contains('active')) updateStats();
-            }
-        } catch (err) {
-            alert('ファイルの読み込みに失敗しました。ファイルが破損しているか、正しいJSON形式ではありません。');
-        } finally {
-            inputElem.value = '';
-            label.innerText = originalLabelText;
-            label.style.opacity = '1';
+    try {
+        const contents = await new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = () => resolve(reader.result);
+            reader.onerror = () => reject(reader.error || new Error('File read failed.'));
+            reader.onabort = () => reject(new Error('File read was aborted.'));
+            reader.readAsText(file);
+        });
+        const tasks = JSON.parse(contents);
+        if (!Array.isArray(tasks) || tasks.some(task => !task || typeof task !== 'object' || Array.isArray(task))) {
+            alert('エラー: バックアップファイル（JSON）の形式が正しくありません。');
+            return;
         }
-    };
-    reader.onerror = () => {
-        alert('ファイルの読み取り中にエラーが発生しました。');
+
+        if (confirm(`読み込んだ ${tasks.length} 件のデータで復元しますか？\n※現在のデータは完全に上書き消去されます。`)) {
+            await replaceAllTasks(tasks);
+            await loadTasks();
+            if (document.getElementById('view-stats').classList.contains('active')) updateStats();
+            alert(`${tasks.length} 件のデータの復元が完了しました！`);
+        }
+    } catch (err) {
+        console.warn('Task restore failed.', err);
+        alert('ファイルの読み込みまたは復元に失敗しました。JSON形式とデータ内容を確認してください。');
+    } finally {
         inputElem.value = '';
         label.innerText = originalLabelText;
         label.style.opacity = '1';
     }
-    reader.readAsText(file);
 };
 
 
 function setupUI() {
+    const updateButton = document.getElementById('btn-manual-update');
+    updateButton.addEventListener('click', event => window.handleManualUpdate(event.currentTarget));
+    const restoreInput = document.getElementById('input-restore');
+    restoreInput.addEventListener('change', () => window.handleRestoreData(restoreInput));
+
+    const gasUrlInput = document.getElementById('gas-sync-url');
+    const gasApiKeyInput = document.getElementById('gas-sync-api-key');
+    const savedGasUrl = getGasSyncUrl();
+    const savedGasApiKey = getGasSyncApiKey();
+    gasUrlInput.value = savedGasUrl;
+    gasApiKeyInput.value = savedGasApiKey;
+    if (savedGasUrl && !isValidGasSyncUrl(savedGasUrl)) updateGasSyncStatus('保存済みのGAS URLが無効です。設定を確認してください。');
+    else if (savedGasUrl && savedGasApiKey) updateGasSyncStatus('設定済み。タスクの追加・更新・削除時にバックグラウンド送信します。');
+    else updateGasSyncStatus('URLとAPIキーの両方を設定すると同期します。未設定の間、タスクは外部送信されません。');
+
+    document.getElementById('btn-save-gas-url').addEventListener('click', () => {
+        const value = gasUrlInput.value.trim();
+        const apiKey = gasApiKeyInput.value.trim();
+        if (value && !isValidGasSyncUrl(value)) {
+            updateGasSyncStatus('https://script.google.com/macros/s/.../exec のURLを入力してください。');
+            return alert('有効なGAS WebアプリURL（script.google.com/macros/s/.../exec）を入力してください。');
+        }
+        try {
+            if (value) localStorage.setItem(GAS_SYNC_URL_KEY, value);
+            else localStorage.removeItem(GAS_SYNC_URL_KEY);
+            if (apiKey) localStorage.setItem(GAS_SYNC_API_KEY, apiKey);
+            else localStorage.removeItem(GAS_SYNC_API_KEY);
+            if (!value || !apiKey) {
+                updateGasSyncStatus('URLとAPIキーの両方を設定すると同期します。未設定の間、タスクは外部送信されません。');
+                return;
+            }
+            updateGasSyncStatus('同期設定を保存しました。最新のタスクをバックグラウンド送信します。');
+            scheduleTaskSync();
+        } catch (error) {
+            console.warn('Unable to save the GAS sync settings.', error);
+            alert('同期設定を保存できませんでした。ブラウザーのストレージ設定を確認してください。');
+        }
+    });
+
     document.getElementById('theme-toggle').addEventListener('click', () => {
         const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
         document.documentElement.setAttribute('data-theme', isDark ? 'light' : 'dark');
@@ -320,7 +453,12 @@ function setupUI() {
                 const db = getDB();
                 const tx = db.transaction('tasks', 'readwrite');
                 tx.objectStore('tasks').clear();
-                tx.oncomplete = () => { alert('消去しました。'); loadTasks(); updateStats(); };
+                tx.oncomplete = () => {
+                    scheduleTaskSync();
+                    alert('消去しました。');
+                    loadTasks();
+                    updateStats();
+                };
             }
         });
     }
