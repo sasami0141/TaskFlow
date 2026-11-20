@@ -134,6 +134,13 @@ function calculateDate(baseDateStr, type, amount) {
     return (new Date(d - tzOffset)).toISOString().slice(0, 16);
 }
 
+function toDatetimeLocalValue(dateValue) {
+    if (!dateValue) return '';
+    const date = new Date(dateValue);
+    if (Number.isNaN(date.getTime())) return '';
+    return new Date(date.getTime() - date.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
+}
+
 function saveTask(task) {
     const db = getDB();
     if(!task.id) task.id = generateId();
@@ -194,7 +201,15 @@ async function toggleTaskStatus(task) {
     task.completed = !task.completed;
     if(task.completed && task.recurring && task.recurring !== 'none') {
         let newDateStr = calculateDate(task.deadline, 'days', 1);
-        const nextTask = { ...task, id: generateId(), completed: false, deadline: newDateStr };
+        const nextTask = {
+            ...task,
+            id: generateId(),
+            completed: false,
+            deadline: newDateStr,
+            deadlineAt: new Date(newDateStr).toISOString(),
+            notificationMode: task.notificationMode === 'custom' ? 'none' : task.notificationMode,
+            notificationAt: ''
+        };
         await saveTask(nextTask);
     }
     return saveTask(task);
@@ -382,10 +397,20 @@ function setupUI() {
             input.value = '';
         }
     });
+    const notificationModeInput = document.getElementById('task-notification-mode');
+    const notificationTimeGroup = document.getElementById('task-notification-time-group');
+    notificationModeInput.addEventListener('change', () => {
+        notificationTimeGroup.style.display = notificationModeInput.value === 'custom' ? 'block' : 'none';
+    });
 
     document.getElementById('btn-save').addEventListener('click', async () => {
         const title = document.getElementById('task-title').value;
         if(!title) return alert('タスク名を入力してください');
+        const notificationMode = notificationModeInput.value;
+        const notificationAtInput = document.getElementById('task-notification-at').value;
+        if (notificationMode === 'custom' && !notificationAtInput) return alert('通知日時を入力してください');
+        const notificationAt = notificationMode === 'custom' ? new Date(notificationAtInput) : null;
+        if (notificationAt && Number.isNaN(notificationAt.getTime())) return alert('有効な通知日時を入力してください');
         
         const subtasks = Array.from(document.querySelectorAll('.st-input')).map(input => ({
             id: input.dataset.id, title: input.value, completed: input.dataset.completed === 'true'
@@ -408,6 +433,9 @@ function setupUI() {
             title, 
             startDate: document.getElementById('task-start').value,
             deadline: document.getElementById('task-deadline').value,
+            deadlineAt: document.getElementById('task-deadline').value ? new Date(document.getElementById('task-deadline').value).toISOString() : '',
+            notificationMode,
+            notificationAt: notificationAt ? notificationAt.toISOString() : '',
             priority: document.getElementById('task-priority').value,
             recurring: document.getElementById('task-recurring').value,
             memo: document.getElementById('task-memo').value,
@@ -471,6 +499,9 @@ function openModal(task = null, defaultDateStr = null) {
     document.getElementById('task-title').value = task ? task.title : '';
     document.getElementById('task-start').value = task && task.startDate ? task.startDate : '';
     document.getElementById('task-deadline').value = task ? task.deadline : (defaultDateStr ? defaultDateStr + 'T12:00' : '');
+    document.getElementById('task-notification-mode').value = task && task.notificationMode ? task.notificationMode : 'none';
+    document.getElementById('task-notification-at').value = task && task.notificationAt ? toDatetimeLocalValue(task.notificationAt) : '';
+    document.getElementById('task-notification-time-group').style.display = document.getElementById('task-notification-mode').value === 'custom' ? 'block' : 'none';
     document.getElementById('task-priority').value = task ? task.priority : '2';
     document.getElementById('task-recurring').value = task && task.recurring ? task.recurring : 'none';
     document.getElementById('task-memo').value = task && task.memo ? task.memo : '';
@@ -658,7 +689,7 @@ function renderTasks() {
             const taskItemEl = li.querySelector('.task-item');
             
             taskItemEl.querySelector('.inline-edit-title').addEventListener('change', async e => { task.title = e.target.value; await saveTask(task); });
-            taskItemEl.querySelector('.inline-edit-date').addEventListener('change', async e => { task.deadline = e.target.value; await saveTask(task); loadTasks(); });
+            taskItemEl.querySelector('.inline-edit-date').addEventListener('change', async e => { task.deadline = e.target.value; task.deadlineAt = e.target.value ? new Date(e.target.value).toISOString() : ''; await saveTask(task); loadTasks(); });
             taskItemEl.querySelector('.task-chk').addEventListener('change', async (e) => { await toggleTaskStatus(task); loadTasks(); });
 
             applySwipeToDelete(li, taskItemEl, task);

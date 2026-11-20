@@ -142,6 +142,20 @@
                 <input type="hidden" id="task-id">
                 <div class="form-group"><label>タスク名</label><input type="text" id="task-title" placeholder="何をする予定ですか？" required></div>
                 <div class="form-row"><div class="form-group half"><label>開始日時</label><input type="datetime-local" id="task-start"></div><div class="form-group half"><label>終了日時</label><input type="datetime-local" id="task-deadline"></div></div>
+                <div class="form-group">
+                    <label for="task-notification-mode">期限メール通知</label>
+                    <select id="task-notification-mode">
+                        <option value="none">通知しない</option>
+                        <option value="within24h">A: 期限の24時間前以内</option>
+                        <option value="deadlineMorning">B: 期限当日の朝（日本時間07:00ごろ）</option>
+                        <option value="custom">カスタム: 指定日時</option>
+                    </select>
+                    <div id="task-notification-time-group" style="display:none; margin-top: 8px;">
+                        <label for="task-notification-at">通知日時（端末の現地時刻）</label>
+                        <input type="datetime-local" id="task-notification-at">
+                    </div>
+                    <p class="settings-desc" style="font-size:12px; margin:8px 0 0;">既存タスクは通知されません。通知は未完了タスクのみ対象です。GASの実行状況により指定時刻から数分以上遅れることがあります。</p>
+                </div>
                 <div class="form-group"><div style="background: rgba(128,128,128,0.1); padding: 12px; border-radius: var(--border-radius-md);"><label style="font-size: 12px; font-weight:bold;">📅 追加の日程指定</label><div class="form-row"><input type="date" id="extra-date-input" style="flex:1;"><button type="button" id="btn-add-extra-date" class="btn-secondary" style="padding: 14px 16px;">追加</button></div><div id="extra-dates-container" style="margin-top: 8px;"></div></div></div>
                 <div class="form-row"><div class="form-group half"><label>優先度</label><select id="task-priority"><option value="3">🔥 高</option><option value="2" selected>⭐ 中</option><option value="1">🌱 低</option></select></div><div class="form-group half"><label>繰り返し</label><select id="task-recurring"><option value="none">なし</option><option value="daily">毎日</option><option value="weekly">毎週</option><option value="monthly">毎月</option></select></div></div>
                 <div class="form-group"><label>添付URL</label><div id="urls-container"></div><button type="button" id="btn-add-url" class="btn-outline">+ 🔗 URLを追加</button></div>
@@ -161,6 +175,6 @@
     </nav>
 
     <!-- ★ ファイル名を app_core.js に変更し、古いファイルの読み込みを完全に遮断 ★ -->
-    <script src="js/app_core.js?v=40"></script>
+    <script src="js/app_core.js?v=41"></script>
 </body>
 </html>
