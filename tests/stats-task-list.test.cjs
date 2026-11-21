@@ -54,6 +54,14 @@ test('statistics markup provides accessible status buttons and an expandable res
     assert.match(html, /id="stats-task-panel"[^>]*role="region"/);
     assert.match(html, /id="stats-task-list"/);
 });
+
+test('email notifications do not require a browser notification permission control', () => {
+    const html = fs.readFileSync(path.join(__dirname, '..', 'index.html'), 'utf8');
+
+    assert.doesNotMatch(html, /btn-request-notify|通知を許可する/);
+    assert.doesNotMatch(appCore, /btn-request-notify|Notification\.requestPermission/);
+});
+
 test('PWA cache and script versions stay in sync', () => {
     const html = fs.readFileSync(path.join(__dirname, '..', 'index.html'), 'utf8');
     const sw = fs.readFileSync(path.join(__dirname, '..', 'sw.js'), 'utf8');

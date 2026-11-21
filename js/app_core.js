@@ -586,16 +586,6 @@ function setupUI() {
     document.getElementById('filter-status').addEventListener('change', renderTasks);
     document.getElementById('sort-select').addEventListener('change', renderTasks);
     
-    const btnRequestNotify = document.getElementById('btn-request-notify');
-    if (btnRequestNotify) {
-        btnRequestNotify.addEventListener('click', async () => {
-            if (!("Notification" in window)) return alert("通知機能非対応です。");
-            let permission = Notification.permission;
-            if (permission !== "granted" && permission !== "denied") permission = await Notification.requestPermission();
-            alert(permission === "granted" ? "通知が許可されました！" : "通知設定を確認してください。");
-        });
-    }
-
     const btnBackup = document.getElementById('btn-backup');
     if (btnBackup) {
         btnBackup.addEventListener('click', async () => {
