@@ -68,8 +68,11 @@ test('PWA cache and script versions stay in sync', () => {
 test('Wi-Fi-only sync allows Wi-Fi and Ethernet but blocks cellular and unknown networks', () => {
     const appCore = fs.readFileSync(path.join(__dirname, '..', 'js', 'app_core.js'), 'utf8');
     const helperSource = appCore.match(/function isWifiOnlySyncAllowed\(networkNavigator\) \{[\s\S]*?\n\}/);
+    const connectionSource = appCore.match(/function getNetworkConnection\(networkNavigator\) \{[\s\S]*?\n\}/);
     assert.ok(helperSource, 'Wi-Fi-only sync helper must exist');
-    const isWifiOnlySyncAllowed = vm.runInNewContext(`(${helperSource[0]})`);
+    const isWifiOnlySyncAllowed = vm.runInNewContext(
+        `(() => { ${connectionSource[0]} return ${helperSource[0]}; })()`
+    );
 
     assert.equal(isWifiOnlySyncAllowed({ onLine: true, connection: { type: 'wifi' } }), true);
     assert.equal(isWifiOnlySyncAllowed({ onLine: true, connection: { type: 'ethernet' } }), true);
@@ -81,6 +84,7 @@ test('Wi-Fi-only sync allows Wi-Fi and Ethernet but blocks cellular and unknown 
 test('pending GAS sync retries when Wi-Fi becomes available even without a network change event', () => {
     const retrySource = appCore.match(/function startTaskSyncRetry\(\) \{[\s\S]*?\n\}/);
     const wifiSource = appCore.match(/function isWifiOnlySyncAllowed\(networkNavigator\) \{[\s\S]*?\n\}/);
+    const connectionSource = appCore.match(/function getNetworkConnection\(networkNavigator\) \{[\s\S]*?\n\}/);
     assert.ok(retrySource, 'Pending sync retry timer must exist');
     let retryCallback;
     let retryDelay;
@@ -99,7 +103,7 @@ test('pending GAS sync retries when Wi-Fi becomes available even without a netwo
         }
     };
 
-    vm.runInNewContext(`${wifiSource[0]}; ${retrySource[0]}; startTaskSyncRetry();`, context);
+    vm.runInNewContext(`${connectionSource[0]}; ${wifiSource[0]}; ${retrySource[0]}; startTaskSyncRetry();`, context);
     assert.equal(retryDelay, 30000);
     retryCallback();
     assert.equal(scheduleTaskSyncCalls, 0);
@@ -111,6 +115,7 @@ test('pending GAS sync retries when Wi-Fi becomes available even without a netwo
 test('pending GAS sync retry does not schedule while on cellular data', () => {
     const retrySource = appCore.match(/function startTaskSyncRetry\(\) \{[\s\S]*?\n\}/);
     const wifiSource = appCore.match(/function isWifiOnlySyncAllowed\(networkNavigator\) \{[\s\S]*?\n\}/);
+    const connectionSource = appCore.match(/function getNetworkConnection\(networkNavigator\) \{[\s\S]*?\n\}/);
     assert.ok(retrySource, 'Pending sync retry timer must exist');
     let retryCallback;
     let scheduleTaskSyncCalls = 0;
@@ -127,7 +132,39 @@ test('pending GAS sync retry does not schedule while on cellular data', () => {
         }
     };
 
-    vm.runInNewContext(`${wifiSource[0]}; ${retrySource[0]}; startTaskSyncRetry();`, context);
+    vm.runInNewContext(`${connectionSource[0]}; ${wifiSource[0]}; ${retrySource[0]}; startTaskSyncRetry();`, context);
     retryCallback();
     assert.equal(scheduleTaskSyncCalls, 0);
+});
+
+test('manual Wi-Fi confirmation only bypasses unavailable network-type detection', () => {
+    const helperNames = [
+        'getNetworkConnection',
+        'isWifiOnlySyncAllowed',
+        'canManuallyConfirmWifiSync',
+        'canSyncTasksToGasOnNetwork'
+    ];
+    const helperSources = helperNames.map(name => {
+        const helper = appCore.match(new RegExp(`function ${name}\\([^)]*\\) \\{[\\s\\S]*?\\n\\}`));
+        assert.ok(helper, `${name} helper must exist`);
+        return helper[0];
+    });
+    const canSyncTasksToGasOnNetwork = vm.runInNewContext(
+        `(() => { ${helperSources.join('\n')} return canSyncTasksToGasOnNetwork; })()`
+    );
+
+    assert.equal(canSyncTasksToGasOnNetwork({ onLine: true, connection: { type: 'wifi' } }, false), true);
+    assert.equal(canSyncTasksToGasOnNetwork({ onLine: true, connection: { type: 'unknown' } }, false), false);
+    assert.equal(canSyncTasksToGasOnNetwork({ onLine: true, connection: { type: 'unknown' } }, true), true);
+    assert.equal(canSyncTasksToGasOnNetwork({ onLine: true }, true), true);
+    assert.equal(canSyncTasksToGasOnNetwork({ onLine: true, connection: { type: 'cellular' } }, true), false);
+    assert.equal(canSyncTasksToGasOnNetwork({ onLine: false }, true), false);
+});
+
+test('settings expose a Wi-Fi-confirmed manual sync action for unsupported browsers', () => {
+    const html = fs.readFileSync(path.join(__dirname, '..', 'index.html'), 'utf8');
+    const appCore = fs.readFileSync(path.join(__dirname, '..', 'js', 'app_core.js'), 'utf8');
+
+    assert.match(html, /id="btn-manual-gas-sync"/);
+    assert.match(appCore, /getElementById\('btn-manual-gas-sync'\)\.addEventListener\('click', syncTasksManuallyOnWifi\)/);
 });
