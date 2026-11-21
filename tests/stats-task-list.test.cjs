@@ -78,3 +78,56 @@ test('Wi-Fi-only sync allows Wi-Fi and Ethernet but blocks cellular and unknown 
     assert.equal(isWifiOnlySyncAllowed({ onLine: false, connection: { type: 'wifi' } }), false);
     assert.equal(isWifiOnlySyncAllowed({ onLine: true }), false);
 });
+test('pending GAS sync retries when Wi-Fi becomes available even without a network change event', () => {
+    const retrySource = appCore.match(/function startTaskSyncRetry\(\) \{[\s\S]*?\n\}/);
+    const wifiSource = appCore.match(/function isWifiOnlySyncAllowed\(networkNavigator\) \{[\s\S]*?\n\}/);
+    assert.ok(retrySource, 'Pending sync retry timer must exist');
+    let retryCallback;
+    let retryDelay;
+    let scheduleTaskSyncCalls = 0;
+    const context = {
+        navigator: { onLine: true, connection: { type: 'cellular' } },
+        taskSyncRetryTimer: null,
+        taskSyncPending: true,
+        setInterval(callback, delay) {
+            retryCallback = callback;
+            retryDelay = delay;
+            return 1;
+        },
+        scheduleTaskSync: () => {
+            scheduleTaskSyncCalls++;
+        }
+    };
+
+    vm.runInNewContext(`${wifiSource[0]}; ${retrySource[0]}; startTaskSyncRetry();`, context);
+    assert.equal(retryDelay, 30000);
+    retryCallback();
+    assert.equal(scheduleTaskSyncCalls, 0);
+    context.navigator.connection.type = 'wifi';
+    retryCallback();
+    assert.equal(scheduleTaskSyncCalls, 1);
+});
+
+test('pending GAS sync retry does not schedule while on cellular data', () => {
+    const retrySource = appCore.match(/function startTaskSyncRetry\(\) \{[\s\S]*?\n\}/);
+    const wifiSource = appCore.match(/function isWifiOnlySyncAllowed\(networkNavigator\) \{[\s\S]*?\n\}/);
+    assert.ok(retrySource, 'Pending sync retry timer must exist');
+    let retryCallback;
+    let scheduleTaskSyncCalls = 0;
+    const context = {
+        navigator: { onLine: true, connection: { type: 'cellular' } },
+        taskSyncRetryTimer: null,
+        taskSyncPending: true,
+        setInterval(callback) {
+            retryCallback = callback;
+            return 1;
+        },
+        scheduleTaskSync: () => {
+            scheduleTaskSyncCalls++;
+        }
+    };
+
+    vm.runInNewContext(`${wifiSource[0]}; ${retrySource[0]}; startTaskSyncRetry();`, context);
+    retryCallback();
+    assert.equal(scheduleTaskSyncCalls, 0);
+});
