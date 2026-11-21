@@ -77,6 +77,6 @@ TaskFlowの「設定」>「Google Apps Script 同期」で通知先を入力し�
 
 Google Apps Scriptの実行は指定時刻から遅れることがあり、分単位のカスタム通知を保証するものではありません。5分トリガーは1日約288回実行されます。個人アカウントではトリガー実行の合計が1日90分（288回に均等配分すると平均約18.75秒/回）、メール宛先が1日100件、トリガー数がユーザー・スクリプトあたり20個などのクォータがあります（Workspaceアカウントは別枠）。実際の上限は変更される可能性があります。メールは該当タスク群ごとに1通ですが、頻繁な別時刻の通知はメールクォータを消費します。Apps Scriptの「実行数」で動作状況や失敗を確認してください。
 
-TaskFlowは `POST`、`Content-Type: text/plain;charset=UTF-8`、`mode: no-cors` で本文を送ります。CORS応答を読み取れないため、送信要求が完了してもGASの成功は確認できません。受信・エラーはApps Scriptの実行数とスプレッドシートで確認してください。通信失敗時もIndexedDBへの保存は継続し、保留中の同期はオンライン復帰・ネットワーク種別変更・画面復帰時に再確認し、接続状態の変更イベントを受け取れない場合も30秒ごとに再試行します。Wi-Fi種別を判定できないブラウザーでは自動送信せず、Wi-Fi接続中に設定画面の「Wi-Fi接続後に今すぐ同期」を押したときだけ送信します。明示的にモバイル回線と判定される場合とオフライン時は、手動操作でも送信しません。`NetworkInformation.type` の対応状況は [MDN](https://developer.mozilla.org/en-US/docs/Web/API/NetworkInformation/type) を参照してください。Google Sheetsのセル上限を超える大きなタスク項目は同期できず、その場合は直前の `tasks` スナップショットが保持されます。
+TaskFlowはタスクの追加・変更・削除後に `POST`、`Content-Type: text/plain;charset=UTF-8`、`mode: no-cors` で最新の全件スナップショットを自動送信します。Wi-Fi・モバイル回線など回線種別は問わず、オフライン時だけ同期を保留し、オンライン復帰・画面復帰時に再確認します。接続状態の変更イベントを受け取れない場合も30秒ごとに再試行します。設定画面から手動同期もできます。CORS応答を読み取れないため、送信要求が完了してもGASの成功は確認できません。受信・エラーはApps Scriptの実行数とスプレッドシートで確認してください。通信失敗時もIndexedDBへの保存は継続します。Google Sheetsのセル上限を超える大きなタスク項目は同期できず、その場合は直前の `tasks` スナップショットが保持されます。
 
 出典: [Apps Script クォータ](https://developers.google.com/apps-script/guides/services/quotas)、[インストール型・時間主導トリガー](https://developers.google.com/apps-script/guides/triggers/installable)（Google公式ドキュメント）。
