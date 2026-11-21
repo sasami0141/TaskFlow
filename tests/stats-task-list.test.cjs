@@ -54,7 +54,6 @@ test('statistics markup provides accessible status buttons and an expandable res
     assert.match(html, /id="stats-task-panel"[^>]*role="region"/);
     assert.match(html, /id="stats-task-list"/);
 });
-
 test('PWA cache and script versions stay in sync', () => {
     const html = fs.readFileSync(path.join(__dirname, '..', 'index.html'), 'utf8');
     const sw = fs.readFileSync(path.join(__dirname, '..', 'sw.js'), 'utf8');
