@@ -86,6 +86,14 @@ function updateGasSyncStatus(message) {
     const status = document.getElementById('gas-sync-status');
     if (status) status.textContent = message;
 }
+function isWifiOnlySyncAllowed(networkNavigator) {
+    if (!networkNavigator || networkNavigator.onLine === false) return false;
+    const connection = networkNavigator.connection ||
+        networkNavigator.mozConnection ||
+        networkNavigator.webkitConnection;
+    if (!connection || typeof connection.type !== 'string') return false;
+    return connection.type === 'wifi' || connection.type === 'ethernet';
+}
 function scheduleTaskSync() {
     const url = getGasSyncUrl();
     const apiKey = getGasSyncApiKey();
@@ -94,6 +102,16 @@ function scheduleTaskSync() {
         updateGasSyncStatus('保存済みのGAS URLが無効です。設定を確認してください。');
         return;
     }
+    if (!isWifiOnlySyncAllowed(navigator)) {
+        taskSyncPending = true;
+        if (navigator.onLine === false) {
+            updateGasSyncStatus('オフライン中です。Wi-Fi接続時に同期します。');
+        } else {
+            updateGasSyncStatus('モバイル回線またはネットワーク種別不明のため同期を待機します。Wi-Fi接続時に同期します。');
+        }
+        return;
+    }
+    taskSyncPending = false;
     clearTimeout(taskSyncTimer);
     taskSyncTimer = setTimeout(() => {
         taskSyncTimer = null;
@@ -104,6 +122,10 @@ async function syncTasksToGas() {
     const url = getGasSyncUrl();
     const apiKey = getGasSyncApiKey();
     if (!url || !apiKey || !isValidGasSyncUrl(url)) return;
+    if (!isWifiOnlySyncAllowed(navigator)) {
+        taskSyncPending = true;
+        return;
+    }
     if (taskSyncInProgress) {
         taskSyncPending = true;
         return;
@@ -271,6 +293,17 @@ document.addEventListener('DOMContentLoaded', async () => {
     fetchAppVersion().catch(error => console.warn('Unable to read the app version.', error));
     if (getGasSyncUrl()) scheduleTaskSync();
     window.addEventListener('online', scheduleTaskSync);
+    window.addEventListener('offline', () => {
+        if (taskSyncTimer) clearTimeout(taskSyncTimer);
+        taskSyncPending = true;
+        updateGasSyncStatus('オフライン中です。Wi-Fi接続時に同期します。');
+    });
+    const networkConnection = navigator.connection ||
+        navigator.mozConnection ||
+        navigator.webkitConnection;
+    if (networkConnection && typeof networkConnection.addEventListener === 'function') {
+        networkConnection.addEventListener('change', scheduleTaskSync);
+    }
 });
 
 // 手動更新チェック
