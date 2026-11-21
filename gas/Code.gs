@@ -3,6 +3,7 @@ const TASKFLOW_TASKS_SHEET = 'tasks';
 const TASKFLOW_NOTIFICATION_LOG_SHEET = '_notification_log';
 const TASKFLOW_API_KEY_PROPERTY = 'TASKFLOW_API_KEY';
 const TASKFLOW_NOTIFICATION_EMAIL_PROPERTY = 'TASKFLOW_NOTIFICATION_EMAIL';
+const TASKFLOW_NOTIFICATION_FROM_PROPERTY = 'TASKFLOW_NOTIFICATION_FROM';
 const TASKFLOW_TASK_HEADERS = [
   'id', 'title', 'startDate', 'deadline', 'deadlineAt', 'priority', 'recurring',
   'memo', 'completed', 'notificationMode', 'notificationAt', 'extraDates',
@@ -74,6 +75,28 @@ function taskflowGetNotificationRecipient() {
   const fallback = Session.getEffectiveUser().getEmail();
   if (!fallback) throw new Error('The trigger execution account email is unavailable.');
   return fallback;
+}
+
+function taskflowGetNotificationSenderOptions() {
+  const sender = PropertiesService.getScriptProperties()
+    .getProperty(TASKFLOW_NOTIFICATION_FROM_PROPERTY);
+  if (!sender || !sender.trim()) return {};
+
+  const normalizedSender = sender.trim();
+  if (!taskflowIsValidNotificationEmail(normalizedSender)) {
+    throw new Error('The configured notification sender email is invalid.');
+  }
+  const aliases = GmailApp.getAliases().map(function(alias) {
+    return alias.toLowerCase();
+  });
+  if (aliases.indexOf(normalizedSender.toLowerCase()) === -1) {
+    throw new Error('The configured sender must be a Gmail alias for the trigger account.');
+  }
+  return { from: normalizedSender };
+}
+
+function taskflowSendNotification(recipient, subject, body) {
+  GmailApp.sendEmail(recipient, subject, body, taskflowGetNotificationSenderOptions());
 }
 
 function taskflowJsonResponse(value) {
@@ -180,11 +203,11 @@ function scanTaskNotifications() {
         : '';
       return '・' + notice.title + deadlineText;
     });
-    MailApp.sendEmail({
-      to: recipient,
-      subject: 'TaskFlowの期限リマインダー（' + Utilities.formatDate(now, TASKFLOW_TIME_ZONE, 'yyyy/MM/dd HH:mm') + '）',
-      body: '未完了タスクのお知らせです。\n\n' + lines.join('\n')
-    });
+    taskflowSendNotification(
+      recipient,
+      'TaskFlowの期限リマインダー（' + Utilities.formatDate(now, TASKFLOW_TIME_ZONE, 'yyyy/MM/dd HH:mm') + '）',
+      '未完了タスクのお知らせです。\n\n' + lines.join('\n')
+    );
 
     const sentAt = now.toISOString();
     const logRows = due.map(function(notice) { return [notice.key, sentAt]; });
