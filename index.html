@@ -127,7 +127,6 @@
                 </div>
                 <div class="divider"></div>
                 <h3 style="margin-top: 0; font-size: 14px; color: var(--text-secondary);">データ管理</h3>
-                <div style="margin-bottom: 20px;"><button id="btn-request-notify" class="btn-primary full-width" style="background-color: #34c759;">🔔 通知を許可する</button></div>
                 <button id="btn-backup" class="btn-primary full-width">データのバックアップ (JSON)</button>
                 <div class="divider"></div>
                 
@@ -147,7 +146,7 @@
                 <div class="form-group">
                     <label for="gas-notification-email">期限通知の送信先メールアドレス（任意）</label>
                     <input type="email" id="gas-notification-email" autocomplete="email" placeholder="name@example.com">
-                    <p style="font-size:11px; color:var(--text-secondary); margin-top:8px;">空欄の場合は作成者"yaki~@gmail.comに"送信されます</p>
+                    <p style="font-size:11px; color:var(--text-secondary); margin-top:8px;">空欄の場合はGASの実行アカウントに送信されます。</p>
                 </div>
                 <button id="btn-save-gas-url" class="btn-outline full-width">同期設定を保存</button>
                 <p id="gas-sync-status" role="status" aria-live="polite" style="font-size: 11px; color: var(--text-secondary); margin-top: 8px;">URL未設定。タスクは外部送信されません。</p>
@@ -203,6 +202,6 @@
     </nav>
 
     <!-- ★ ファイル名を app_core.js に変更し、古いファイルの読み込みを完全に遮断 ★ -->
-    <script src="js/app_core.js?v=48"></script>
+    <script src="js/app_core.js?v=49"></script>
 </body>
 </html>
