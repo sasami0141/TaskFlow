@@ -78,7 +78,6 @@ test('Wi-Fi-only sync allows Wi-Fi and Ethernet but blocks cellular and unknown 
     assert.equal(isWifiOnlySyncAllowed({ onLine: false, connection: { type: 'wifi' } }), false);
     assert.equal(isWifiOnlySyncAllowed({ onLine: true }), false);
 });
-
 test('pending GAS sync retries when Wi-Fi becomes available even without a network change event', () => {
     const retrySource = appCore.match(/function startTaskSyncRetry\(\) \{[\s\S]*?\n\}/);
     const wifiSource = appCore.match(/function isWifiOnlySyncAllowed\(networkNavigator\) \{[\s\S]*?\n\}/);
