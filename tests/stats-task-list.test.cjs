@@ -65,3 +65,17 @@ test('PWA cache and script versions stay in sync', () => {
     assert.equal(scriptVersion[1], cacheName[1], 'app_core.js and CACHE_NAME must use the same version');
     assert.match(sw, new RegExp(`\\.\\/js\\/app_core\\.js\\?v=${scriptVersion[1]}`));
 });
+
+test('Wi-Fi-only sync allows Wi-Fi and Ethernet but blocks cellular and unknown networks', () => {
+    const appCore = fs.readFileSync(path.join(__dirname, '..', 'js', 'app_core.js'), 'utf8');
+    const helperSource = appCore.match(/function isWifiOnlySyncAllowed\(networkNavigator\) \{[\s\S]*?\n\}/);
+    assert.ok(helperSource, 'Wi-Fi-only sync helper must exist');
+    const isWifiOnlySyncAllowed = vm.runInNewContext(`(${helperSource[0]})`);
+
+    assert.equal(isWifiOnlySyncAllowed({ onLine: true, connection: { type: 'wifi' } }), true);
+    assert.equal(isWifiOnlySyncAllowed({ onLine: true, connection: { type: 'ethernet' } }), true);
+    assert.equal(isWifiOnlySyncAllowed({ onLine: true, connection: { type: 'cellular' } }), false);
+    assert.equal(isWifiOnlySyncAllowed({ onLine: true, connection: { type: 'unknown' } }), false);
+    assert.equal(isWifiOnlySyncAllowed({ onLine: false, connection: { type: 'wifi' } }), false);
+    assert.equal(isWifiOnlySyncAllowed({ onLine: true }), false);
+});
