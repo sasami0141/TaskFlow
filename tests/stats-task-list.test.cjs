@@ -65,7 +65,6 @@ test('PWA cache and script versions stay in sync', () => {
     assert.equal(scriptVersion[1], cacheName[1], 'app_core.js and CACHE_NAME must use the same version');
     assert.match(sw, new RegExp(`\\.\\/js\\/app_core\\.js\\?v=${scriptVersion[1]}`));
 });
-
 test('Wi-Fi-only sync allows Wi-Fi and Ethernet but blocks cellular and unknown networks', () => {
     const appCore = fs.readFileSync(path.join(__dirname, '..', 'js', 'app_core.js'), 'utf8');
     const helperSource = appCore.match(/function isWifiOnlySyncAllowed\(networkNavigator\) \{[\s\S]*?\n\}/);
