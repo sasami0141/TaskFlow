@@ -261,6 +261,7 @@ let currentTasks = [];
 let calDate = new Date();
 let selectedDateStr = null;
 let currentExtraDates = []; 
+let currentStatStatus = null;
 
 document.addEventListener('DOMContentLoaded', async () => {
     await initDB();
@@ -401,6 +402,14 @@ function setupUI() {
             document.getElementById(targetId).classList.add('active');
             if(targetId === 'view-calendar') renderCalendar();
             if(targetId === 'view-stats') updateStats();
+        });
+    });
+
+    document.querySelectorAll('[data-stat-status]').forEach(button => {
+        button.addEventListener('click', () => {
+            const status = button.dataset.statStatus;
+            currentStatStatus = currentStatStatus === status ? null : status;
+            renderStatsTaskList();
         });
     });
 
@@ -602,7 +611,11 @@ function addSubtaskField(title = '', completed = false, id = null) {
     container.appendChild(div);
 }
 
-async function loadTasks() { currentTasks = await getAllTasks(); renderTasks(); }
+async function loadTasks() {
+    currentTasks = await getAllTasks();
+    renderTasks();
+    if (document.getElementById('view-stats').classList.contains('active')) updateStats();
+}
 
 function applySwipeToDelete(wrapperEl, taskItemEl, task) {
     let startX = 0, currentX = 0, isDragging = false, lastMoveX = 0;
@@ -801,4 +814,85 @@ function updateStats() {
     document.getElementById('stat-completed').innerText = completed;
     document.getElementById('stat-rate').innerText = `${rate}%`;
     document.getElementById('stat-progress').style.width = `${rate}%`;
+    renderStatsTaskList();
+}
+
+function getRecentTasksByStatus(tasks, status, limit = 10) {
+    return tasks
+        .map((task, index) => ({ task, index }))
+        .filter(({ task }) => status === 'completed' ? Boolean(task.completed) : status === 'active' ? !task.completed : false)
+        .sort((a, b) => {
+            const aTime = Date.parse(a.task.createdAt);
+            const bTime = Date.parse(b.task.createdAt);
+            const aTimestamp = Number.isNaN(aTime) ? 0 : aTime;
+            const bTimestamp = Number.isNaN(bTime) ? 0 : bTime;
+            if (aTimestamp !== bTimestamp) return bTimestamp - aTimestamp;
+
+            const aId = String(a.task.id || '');
+            const bId = String(b.task.id || '');
+            const idComparison = aId.localeCompare(bId);
+            if (idComparison !== 0) return idComparison;
+
+            const titleComparison = String(a.task.title || '').localeCompare(String(b.task.title || ''));
+            if (titleComparison !== 0) return titleComparison;
+            return a.index - b.index;
+        })
+        .slice(0, limit)
+        .map(({ task }) => task);
+}
+
+function renderStatsTaskList() {
+    const panel = document.getElementById('stats-task-panel');
+    const heading = document.getElementById('stats-task-heading');
+    const list = document.getElementById('stats-task-list');
+    if (!panel || !heading || !list) return;
+
+    document.querySelectorAll('[data-stat-status]').forEach(button => {
+        const selected = button.dataset.statStatus === currentStatStatus;
+        button.classList.toggle('selected', selected);
+        button.setAttribute('aria-expanded', selected ? 'true' : 'false');
+    });
+
+    if (!currentStatStatus) {
+        panel.hidden = true;
+        heading.textContent = '';
+        list.replaceChildren();
+        return;
+    }
+
+    panel.hidden = false;
+    const statusLabel = currentStatStatus === 'completed' ? '完了済み' : '未完了';
+    heading.textContent = `${statusLabel}タスク（直近10件）`;
+    list.replaceChildren();
+
+    const tasks = getRecentTasksByStatus(currentTasks, currentStatStatus, 10);
+    if (tasks.length === 0) {
+        const empty = document.createElement('li');
+        empty.className = 'stats-task-empty';
+        empty.textContent = '該当するタスクはありません';
+        list.appendChild(empty);
+        return;
+    }
+
+    tasks.forEach(task => {
+        const item = document.createElement('li');
+        item.className = 'stats-task-list-item';
+
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.className = 'stats-task-button';
+        button.addEventListener('click', () => openModal(task));
+
+        const title = document.createElement('span');
+        title.className = 'stats-task-title';
+        title.textContent = `${task.completed ? '✓ ' : '○ '}${task.title || '無題のタスク'}`;
+
+        const meta = document.createElement('span');
+        meta.className = 'stats-task-meta';
+        meta.textContent = task.deadline ? `期限 ${task.deadline.replace('T', ' ')}` : '期限なし';
+
+        button.append(title, meta);
+        item.appendChild(button);
+        list.appendChild(item);
+    });
 }
