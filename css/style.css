@@ -222,12 +222,32 @@ ul { list-style: none; }
 .stat-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
 .stat-card { background: var(--surface-color); padding: 20px; border-radius: var(--border-radius-lg); box-shadow: var(--shadow-sm); text-align: center; }
 .full-width { grid-column: span 2; }
+.stat-card-button { width: 100%; color: var(--text-color); cursor: pointer; }
+.stat-card-button:hover { box-shadow: var(--shadow-md); }
+.stat-card-button:focus-visible { outline: 3px solid var(--primary-color); outline-offset: 3px; }
+.stat-card-button.selected { border: 2px solid var(--primary-color); padding: 18px; }
 .stat-value { font-size: 32px; font-weight: 800; margin-bottom: 4px; }
 .stat-value.highlight { color: var(--success-color); }
 .stat-value.text-primary { color: var(--primary-color); }
 .stat-label { font-size: 14px; color: var(--text-secondary); font-weight: 500; }
 .progress-bar-bg { background-color: var(--bg-color); height: 12px; border-radius: 6px; margin-top: 12px; overflow: hidden; }
 .progress-bar-fill { background-color: var(--primary-color); height: 100%; width: 0%; transition: width 0.5s ease-out; }
+.stats-task-panel { margin-top: 16px; background: var(--surface-color); border-radius: var(--border-radius-lg); box-shadow: var(--shadow-sm); padding: 16px; }
+.stats-task-panel[hidden] { display: none; }
+.stats-task-heading { font-size: 16px; margin-bottom: 12px; }
+.stats-task-list { display: flex; flex-direction: column; gap: 8px; }
+.stats-task-list-item { list-style: none; }
+.stats-task-button { width: 100%; min-height: 56px; display: flex; align-items: center; justify-content: space-between; gap: 12px; text-align: left; background: var(--bg-color); color: var(--text-color); border: 1px solid transparent; border-radius: var(--border-radius-md); padding: 12px; }
+.stats-task-button:hover { border-color: var(--primary-color); }
+.stats-task-button:focus-visible { outline: 3px solid var(--primary-color); outline-offset: 2px; }
+.stats-task-title { min-width: 0; overflow-wrap: anywhere; }
+.stats-task-meta { flex-shrink: 0; color: var(--text-secondary); font-size: 12px; text-align: right; }
+.stats-task-empty { color: var(--text-secondary); font-size: 14px; padding: 8px 0; }
+
+@media (max-width: 480px) {
+    .stats-task-button { align-items: flex-start; flex-direction: column; gap: 6px; }
+    .stats-task-meta { text-align: left; }
+}
 
 /* Settings */
 .settings-desc { font-size: 14px; color: var(--text-secondary); margin-bottom: 20px; line-height: 1.5; }

@@ -93,7 +93,28 @@
 
         <section id="view-calendar" class="view"><div class="card"><div class="calendar-header"><button id="cal-prev" class="btn-icon">◀</button><h2 id="cal-month">2026年 11月</h2><button id="cal-next" class="btn-icon">▶</button></div><div id="calendar-grid"></div></div><div id="calendar-tasks" class="calendar-task-list"></div></section>
         
-        <section id="view-stats" class="view"><h2 class="section-title">あなたの進捗</h2><div class="stat-grid"><div class="stat-card" id="card-stat-active"><div class="stat-value" id="stat-active">0</div><div class="stat-label">未完了</div></div><div class="stat-card" id="card-stat-completed"><div class="stat-value highlight" id="stat-completed">0</div><div class="stat-label">完了済み</div></div><div class="stat-card full-width"><div class="stat-value text-primary" id="stat-rate">0%</div><div class="stat-label">達成率</div><div class="progress-bar-bg"><div class="progress-bar-fill" id="stat-progress"></div></div></div></div></section>
+        <section id="view-stats" class="view">
+            <h2 class="section-title">あなたの進捗</h2>
+            <div class="stat-grid">
+                <button type="button" class="stat-card stat-card-button" id="card-stat-active" data-stat-status="active" aria-expanded="false" aria-controls="stats-task-panel">
+                    <div class="stat-value" id="stat-active">0</div>
+                    <div class="stat-label">未完了</div>
+                </button>
+                <button type="button" class="stat-card stat-card-button" id="card-stat-completed" data-stat-status="completed" aria-expanded="false" aria-controls="stats-task-panel">
+                    <div class="stat-value highlight" id="stat-completed">0</div>
+                    <div class="stat-label">完了済み</div>
+                </button>
+                <div class="stat-card full-width">
+                    <div class="stat-value text-primary" id="stat-rate">0%</div>
+                    <div class="stat-label">達成率</div>
+                    <div class="progress-bar-bg"><div class="progress-bar-fill" id="stat-progress"></div></div>
+                </div>
+            </div>
+            <div id="stats-task-panel" class="stats-task-panel" role="region" aria-live="polite" hidden>
+                <h3 id="stats-task-heading" class="stats-task-heading"></h3>
+                <ul id="stats-task-list" class="stats-task-list"></ul>
+            </div>
+        </section>
 
         <section id="view-settings" class="view">
             <h2 class="section-title">設定</h2>
@@ -180,6 +201,6 @@
     </nav>
 
     <!-- ★ ファイル名を app_core.js に変更し、古いファイルの読み込みを完全に遮断 ★ -->
-    <script src="js/app_core.js?v=43"></script>
+    <script src="js/app_core.js?v=44"></script>
 </body>
 </html>
