@@ -87,30 +87,13 @@ function updateGasSyncStatus(message) {
     const status = document.getElementById('gas-sync-status');
     if (status) status.textContent = message;
 }
-function getNetworkConnection(networkNavigator) {
-    return networkNavigator && (networkNavigator.connection ||
-        networkNavigator.mozConnection ||
-        networkNavigator.webkitConnection);
-}
-function isWifiOnlySyncAllowed(networkNavigator) {
-    if (!networkNavigator || networkNavigator.onLine === false) return false;
-    const connection = getNetworkConnection(networkNavigator);
-    if (!connection || typeof connection.type !== 'string') return false;
-    return connection.type === 'wifi' || connection.type === 'ethernet';
-}
-function canManuallyConfirmWifiSync(networkNavigator) {
-    if (!networkNavigator || networkNavigator.onLine === false) return false;
-    const connection = getNetworkConnection(networkNavigator);
-    return !connection || typeof connection.type !== 'string' || connection.type === 'unknown';
-}
-function canSyncTasksToGasOnNetwork(networkNavigator, wifiConfirmed) {
-    return isWifiOnlySyncAllowed(networkNavigator) ||
-        (wifiConfirmed && canManuallyConfirmWifiSync(networkNavigator));
+function isTaskSyncNetworkAvailable(networkNavigator) {
+    return !!networkNavigator && networkNavigator.onLine !== false;
 }
 function startTaskSyncRetry() {
     if (taskSyncRetryTimer !== null) return;
     taskSyncRetryTimer = setInterval(() => {
-        if (taskSyncPending && isWifiOnlySyncAllowed(navigator)) scheduleTaskSync();
+        if (taskSyncPending && isTaskSyncNetworkAvailable(navigator)) scheduleTaskSync();
     }, 30000);
 }
 function stopTaskSyncRetry() {
@@ -118,7 +101,7 @@ function stopTaskSyncRetry() {
     taskSyncRetryTimer = null;
 }
 function retryPendingTaskSync() {
-    if (taskSyncPending && isWifiOnlySyncAllowed(navigator)) scheduleTaskSync();
+    if (taskSyncPending && isTaskSyncNetworkAvailable(navigator)) scheduleTaskSync();
 }
 function scheduleTaskSync() {
     const url = getGasSyncUrl();
@@ -128,18 +111,10 @@ function scheduleTaskSync() {
         updateGasSyncStatus('保存済みのGAS URLが無効です。設定を確認してください。');
         return;
     }
-    if (!isWifiOnlySyncAllowed(navigator)) {
+    if (!isTaskSyncNetworkAvailable(navigator)) {
         taskSyncPending = true;
         startTaskSyncRetry();
-        if (navigator.onLine === false) {
-            updateGasSyncStatus('オフライン中です。Wi-Fi接続時に同期します。');
-        } else if (canManuallyConfirmWifiSync(navigator)) {
-            updateGasSyncStatus('このブラウザーではWi-Fiを自動判定できません。Wi-Fi接続後、「Wi-Fi接続後に今すぐ同期」を押してください。');
-        } else if (getNetworkConnection(navigator).type === 'cellular') {
-            updateGasSyncStatus('モバイル回線のため同期を保留します。Wi-Fiへ切り替えると自動で再試行します。');
-        } else {
-            updateGasSyncStatus('Wi-Fiまたは有線接続と確認できないため同期を保留します。');
-        }
+        updateGasSyncStatus('オフライン中です。オンライン復帰時に自動で同期します。');
         return;
     }
     taskSyncPending = false;
@@ -150,11 +125,11 @@ function scheduleTaskSync() {
         syncTasksToGas();
     }, 300);
 }
-async function syncTasksToGas(wifiConfirmed = false) {
+async function syncTasksToGas() {
     const url = getGasSyncUrl();
     const apiKey = getGasSyncApiKey();
     if (!url || !apiKey || !isValidGasSyncUrl(url)) return;
-    if (!canSyncTasksToGasOnNetwork(navigator, wifiConfirmed)) {
+    if (!isTaskSyncNetworkAvailable(navigator)) {
         taskSyncPending = true;
         startTaskSyncRetry();
         return;
@@ -166,6 +141,7 @@ async function syncTasksToGas(wifiConfirmed = false) {
 
     taskSyncInProgress = true;
     updateGasSyncStatus('最新のタスクを同期中...');
+    let syncFailed = false;
     try {
         const tasks = await getAllTasks();
         await fetch(url, {
@@ -176,17 +152,20 @@ async function syncTasksToGas(wifiConfirmed = false) {
         });
         updateGasSyncStatus('同期リクエストを送信しました。受信結果はGAS側で確認してください。');
     } catch (error) {
+        syncFailed = true;
+        taskSyncPending = true;
+        startTaskSyncRetry();
         console.warn('GAS task sync failed; local tasks remain saved.', error);
         updateGasSyncStatus('同期に失敗しました。ローカルデータは保存済みです。接続復帰後に再試行します。');
     } finally {
         taskSyncInProgress = false;
-        if (taskSyncPending) {
+        if (taskSyncPending && !syncFailed) {
             taskSyncPending = false;
             scheduleTaskSync();
         }
     }
 }
-function syncTasksManuallyOnWifi() {
+function syncTasksManually() {
     const url = getGasSyncUrl();
     const apiKey = getGasSyncApiKey();
     if (!url || !apiKey) {
@@ -198,13 +177,7 @@ function syncTasksManuallyOnWifi() {
         return;
     }
     if (navigator.onLine === false) {
-        updateGasSyncStatus('オフライン中のため同期できません。Wi-Fi接続後に再度お試しください。');
-        return;
-    }
-    const wifiConfirmed = !isWifiOnlySyncAllowed(navigator) &&
-        canManuallyConfirmWifiSync(navigator);
-    if (!isWifiOnlySyncAllowed(navigator) && !wifiConfirmed) {
-        updateGasSyncStatus('モバイル回線またはWi-Fi以外の接続では同期しません。');
+        updateGasSyncStatus('オフライン中のため同期できません。オンライン復帰後に再度お試しください。');
         return;
     }
     if (taskSyncInProgress) {
@@ -215,7 +188,7 @@ function syncTasksManuallyOnWifi() {
     taskSyncTimer = null;
     taskSyncPending = false;
     stopTaskSyncRetry();
-    syncTasksToGas(wifiConfirmed);
+    syncTasksToGas();
 }
 function calculateDate(baseDateStr, type, amount) {
     const d = baseDateStr ? new Date(baseDateStr) : new Date();
@@ -366,7 +339,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (taskSyncTimer) clearTimeout(taskSyncTimer);
         taskSyncPending = true;
         startTaskSyncRetry();
-        updateGasSyncStatus('オフライン中です。Wi-Fi接続時に同期します。');
+        updateGasSyncStatus('オフライン中です。オンライン復帰時に自動で同期します。');
     });
     const networkConnection = navigator.connection ||
         navigator.mozConnection ||
@@ -448,7 +421,7 @@ function setupUI() {
     const gasUrlInput = document.getElementById('gas-sync-url');
     const gasApiKeyInput = document.getElementById('gas-sync-api-key');
     const gasNotificationEmailInput = document.getElementById('gas-notification-email');
-    document.getElementById('btn-manual-gas-sync').addEventListener('click', syncTasksManuallyOnWifi);
+    document.getElementById('btn-manual-gas-sync').addEventListener('click', syncTasksManually);
     const savedGasUrl = getGasSyncUrl();
     const savedGasApiKey = getGasSyncApiKey();
     const savedNotificationEmail = getGasNotificationEmail();
