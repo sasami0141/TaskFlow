@@ -54,3 +54,15 @@ test('statistics markup provides accessible status buttons and an expandable res
     assert.match(html, /id="stats-task-panel"[^>]*role="region"/);
     assert.match(html, /id="stats-task-list"/);
 });
+
+test('PWA cache and script versions stay in sync', () => {
+    const html = fs.readFileSync(path.join(__dirname, '..', 'index.html'), 'utf8');
+    const sw = fs.readFileSync(path.join(__dirname, '..', 'sw.js'), 'utf8');
+    const scriptVersion = html.match(/js\/app_core\.js\?v=(\d+)/);
+    const cacheName = sw.match(/const CACHE_NAME = 'v-(\d+)';/);
+
+    assert.ok(scriptVersion, 'index.html must include a versioned app_core.js URL');
+    assert.ok(cacheName, 'sw.js must include a numeric cache version');
+    assert.equal(scriptVersion[1], cacheName[1], 'app_core.js and CACHE_NAME must use the same version');
+    assert.match(sw, new RegExp(`\\.\\/js\\/app_core\\.js\\?v=${scriptVersion[1]}`));
+});
